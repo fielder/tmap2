@@ -1,0 +1,24 @@
+SDLCFLAGS = -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT
+SDLLDFLAGS = -lSDL -lpthread
+
+CC = gcc
+CFLAGS = -Wall -O2 $(SDLCFLAGS)
+LDFLAGS = -lm $(SDLLDFLAGS)
+OBJDIR = obj
+TARGET = $(OBJDIR)/tmap2
+
+OBJS =	$(OBJDIR)/tmap2.o
+
+all: $(TARGET)
+
+clean:
+	rm -f $(OBJDIR)/*.o
+	rm -f $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
+
+########################################################################
+
+$(OBJDIR)/tmap2.o: tmap2.c
+	$(CC) -c $(CFLAGS) $? -o $@
