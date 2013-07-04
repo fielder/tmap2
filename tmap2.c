@@ -14,12 +14,35 @@
 #define BPP (sizeof(PIXTYPE) * 8)
 #define FOV_X 90.0 /* degrees */
 
+#define FLYSPEED 64.0
+
+#if 1
+/* wasd-style on a kinesis advantage w/ dvorak */
+const int bind_forward = '.';
+const int bind_back = 'e';
+const int bind_left = 'o';
+const int bind_right = 'u';
+#else
+/* qwerty-style using arrows */
+const int bind_forward = SDLK_UP;
+const int bind_back = SDLK_DOWN;
+const int bind_left = SDLK_LEFT;
+const int bind_right = SDLK_RIGHT;
+#endif
+
 enum
 {
 	VPLANE_LEFT,
 	VPLANE_RIGHT,
 	VPLANE_TOP,
 	VPLANE_BOTTOM,
+};
+
+enum
+{
+	PITCH,
+	YAW,
+	ROLL,
 };
 
 struct viewplane_s
@@ -236,6 +259,46 @@ ToggleGrab (void)
 
 
 void
+UpdateCamera (void)
+{
+	int left, forward;
+	float v[2];
+
+	/* movement */
+
+	left = 0;
+	left += in.key.state[bind_left] ? 1 : 0;
+	left -= in.key.state[bind_right] ? 1 : 0;
+
+	Vec_Copy (cam.left, v);
+	Vec_Scale (v, left * FLYSPEED * frametime);
+	Vec_Add (cam.pos, v, cam.pos);
+
+	forward = 0;
+	forward += in.key.state[bind_forward] ? 1 : 0;
+	forward -= in.key.state[bind_back] ? 1 : 0;
+
+	Vec_Copy (cam.forward, v);
+	Vec_Scale (v, forward * FLYSPEED * frametime);
+	Vec_Add (cam.pos, v, cam.pos);
+
+	/* camera angle */
+
+	cam.angles[YAW] += -in.mouse_delta[0] * (cam.fov_x / W);
+	while (cam.angles[YAW] >= 2.0 * M_PI)
+		cam.angles[YAW] -= 2.0 * M_PI;
+	while (cam.angles[YAW] < 0.0)
+		cam.angles[YAW] += 2.0 * M_PI;
+
+	cam.angles[PITCH] += in.mouse_delta[1] * (cam.fov_y / H);
+	if (cam.angles[PITCH] > M_PI / 2.0)
+		cam.angles[PITCH] = M_PI / 2.0;
+	if (cam.angles[PITCH] < -M_PI / 2.0)
+		cam.angles[PITCH] = -M_PI / 2.0;
+}
+
+
+void
 RunInput (void)
 {
 	FetchInput ();
@@ -245,8 +308,8 @@ RunInput (void)
 
 	if (in.key.release['g'])
 		ToggleGrab ();
-	
-	//TODO: move the camera
+
+	UpdateCamera ();
 }
 
 /* ========================================================== */
