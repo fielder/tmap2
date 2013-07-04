@@ -72,9 +72,29 @@ struct
 	struct viewplane_s vplanes[4];
 } cam;
 
+enum
+{
+	MBUTTON_LEFT,
+	MBUTTON_MIDDLE,
+	MBUTTON_RIGHT,
+	MBUTTON_WHEEL_UP,
+	MBUTTON_WHEEL_DOWN,
+	MBUTTON_LAST,
+};
+
 struct
 {
-	int mouse_delta[2];
+	struct
+	{
+		int delta[2];
+		struct
+		{
+			int state[MBUTTON_LAST];
+			int press[MBUTTON_LAST];
+			int release[MBUTTON_LAST];
+		} button;
+	} mouse;
+
 	struct
 	{
 		int state[SDLK_LAST];
@@ -169,11 +189,13 @@ FetchInput (void)
 {
 	SDL_Event sdlev;
 
-	in.mouse_delta[0] = 0;
-	in.mouse_delta[1] = 0;
-
 	memset (in.key.press, 0, sizeof(in.key.press));
 	memset (in.key.release, 0, sizeof(in.key.release));
+
+	in.mouse.delta[0] = 0;
+	in.mouse.delta[1] = 0;
+	memset (in.mouse.button.press, 0, sizeof(in.mouse.button.press));
+	memset (in.mouse.button.release, 0, sizeof(in.mouse.button.release));
 
 	while (SDL_PollEvent(&sdlev))
 	{
@@ -202,6 +224,31 @@ FetchInput (void)
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 			{
+				int b = -1;
+				switch (sdlev.button.button)
+				{
+					case 1: b = MBUTTON_LEFT; break;
+					case 2: b = MBUTTON_MIDDLE; break;
+					case 3: b = MBUTTON_RIGHT; break;
+					case 4: b = MBUTTON_WHEEL_UP; break;
+					case 5: b = MBUTTON_WHEEL_DOWN; break;
+					default: break;
+				}
+
+				if (b != -1)
+				{
+					if (sdlev.type == SDL_MOUSEBUTTONDOWN)
+					{
+						in.mouse.button.state[b] = 1;
+						in.mouse.button.press[b] = 1;
+					}
+					else
+					{
+						in.mouse.button.state[b] = 0;
+						in.mouse.button.release[b] = 1;
+					}
+				}
+
 				break;
 			}
 
@@ -211,8 +258,8 @@ FetchInput (void)
 				{
 					if (ignore_mousemove == 0)
 					{
-						in.mouse_delta[0] = sdlev.motion.xrel;
-						in.mouse_delta[1] = sdlev.motion.yrel;
+						in.mouse.delta[0] = sdlev.motion.xrel;
+						in.mouse.delta[1] = sdlev.motion.yrel;
 					}
 					else
 						ignore_mousemove--;
@@ -284,13 +331,13 @@ UpdateCamera (void)
 
 	/* camera angle */
 
-	cam.angles[YAW] += -in.mouse_delta[0] * (cam.fov_x / W);
+	cam.angles[YAW] += -in.mouse.delta[0] * (cam.fov_x / W);
 	while (cam.angles[YAW] >= 2.0 * M_PI)
 		cam.angles[YAW] -= 2.0 * M_PI;
 	while (cam.angles[YAW] < 0.0)
 		cam.angles[YAW] += 2.0 * M_PI;
 
-	cam.angles[PITCH] += in.mouse_delta[1] * (cam.fov_y / H);
+	cam.angles[PITCH] += in.mouse.delta[1] * (cam.fov_y / H);
 	if (cam.angles[PITCH] > M_PI / 2.0)
 		cam.angles[PITCH] = M_PI / 2.0;
 	if (cam.angles[PITCH] < -M_PI / 2.0)
