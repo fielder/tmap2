@@ -1,3 +1,6 @@
+#include "clip.c"
+
+
 void
 CalcCamera (void)
 {
@@ -55,10 +58,70 @@ CalcCamera (void)
 }
 
 
+int
+ProjectPoint (const float p[3], int *u, int *v)
+{
+	float local[3], out[3], zi;
+
+	Vec_Subtract (p, cam.pos, local);
+	Vec_Transform (cam.xform, local, out);
+	if (out[2] <= 0.0)
+		return 0;
+
+	zi = 1.0 / out[2];
+	*u = (W / 2.0) - cam.dist * zi * out[0];
+	*v = (H / 2.0) - cam.dist * zi * out[1];
+
+	if (*u < 0) *u = 0;
+	if (*u >= W) *u = W - 1;
+	if (*v < 0) *v = 0;
+	if (*v >= H) *v = H - 1;
+
+	return 1;
+}
+
+
+float map_verts[MAX_VERTS][3] =
+{
+	{ 0.0, 0.0, 512.0 },
+	{ 0.0, 128.0, 512.0 },
+	{ 64.0, 128.0, 512.0 },
+	{ 64.0, 0.0, 512.0 }
+};
+int map_num_verts = 4;
+
+
+void
+DrawPoly (void)
+{
+	int i;
+
+	c_idx = 0;
+	for (i = 0; i < map_num_verts; i++)
+		Vec_Copy (map_verts[i], c_verts[c_idx][i]);
+	c_numverts = i;
+
+	for (i = 0; i < 4; i++)
+	{
+		if (!ClipPolyAgainstPlane(&cam.vplanes[i]))
+			return;
+	}
+
+	for (i = 0; i < c_numverts; i++)
+	{
+		int u, v;
+		if (ProjectPoint(c_verts[c_idx][i], &u, &v))
+			rowtab[v][u] = 0xffff;
+	}
+}
+
+
 void
 DrawScene (void)
 {
 	CalcCamera ();
+
+	DrawPoly ();
 
 	//...
 }
