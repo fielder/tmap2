@@ -8,8 +8,8 @@
 
 #include "vec.h"
 
-#define W 320
-#define H 240
+#define W (320 * 1)
+#define H (240 * 1)
 #define PIXTYPE uint16_t
 #define BPP (sizeof(PIXTYPE) * 8)
 #define FOV_X 90.0 /* degrees */
@@ -185,8 +185,9 @@ Init (void)
 	Vec_Clear (cam.angles);
 }
 
-static int grabbed = 0;
-static int ignore_mousemove = 1;
+
+int grabbed = 0;
+int ignore_mousemove = 1;
 
 void
 FetchInput (void)

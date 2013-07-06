@@ -1,5 +1,7 @@
 #include "clip.c"
 
+#define BACKFACE_EPSILON 0.1
+
 
 void
 CalcCamera (void)
@@ -95,6 +97,14 @@ void
 DrawPoly (void)
 {
 	int i;
+
+	/* back-face check */
+	{
+		float normal[3], dist;
+		Vec_MakeNormal (map_verts[0], map_verts[1], map_verts[2], normal, &dist);
+		if (Vec_Dot(normal, cam.pos) - dist < BACKFACE_EPSILON)
+			return;
+	}
 
 	c_idx = 0;
 	for (i = 0; i < map_num_verts; i++)
