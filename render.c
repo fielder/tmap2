@@ -1,9 +1,22 @@
+#include <string.h>
 #include <math.h>
 
 #include "tmap2.h"
 #include "vec.h"
 #include "clip.h"
+#include "edge.h"
 #include "render.h"
+
+struct poly_s test_poly =
+{
+	{	{ 0.0, 0.0, 512.0 },
+		{ 0.0, 128.0, 512.0 },
+		{ 64.0, 128.0, 512.0 },
+		{ 64.0, 0.0, 512.0 } },
+	4,
+	{0, 0, -1},
+	-512
+};
 
 
 static void
@@ -63,69 +76,43 @@ CalcCamera (void)
 }
 
 
-static int
-ProjectPoint (const float p[3], int *u, int *v)
+void
+R_RenderPolySpans (void)
 {
-	float local[3], out[3], zi;
+	struct drawspan_s *s;
+	int x;
 
-	Vec_Subtract (p, cam.pos, local);
-	Vec_Transform (cam.xform, local, out);
-	if (out[2] <= 0.0)
-		return 0;
-
-	zi = 1.0 / out[2];
-	*u = (WIDTH / 2.0) - cam.dist * zi * out[0];
-	*v = (HEIGHT / 2.0) - cam.dist * zi * out[1];
-
-	if (*u < 0) *u = 0;
-	if (*u >= WIDTH) *u = WIDTH - 1;
-	if (*v < 0) *v = 0;
-	if (*v >= HEIGHT) *v = HEIGHT - 1;
-
-	return 1;
+	for (s = e_spans; s != e_spans + e_numspans; s++)
+	{
+		for (x = s->left; x <= s->right; x++)
+			rowtab[s->y][x] = 0xffff;
+	}
 }
 
 
-float map_verts[MAX_VERTS][3] =
-{
-	{ 0.0, 0.0, 512.0 },
-	{ 0.0, 128.0, 512.0 },
-	{ 64.0, 128.0, 512.0 },
-	{ 64.0, 0.0, 512.0 }
-};
-int map_num_verts = 4;
-
-
 static void
-DrawPoly (void)
+DrawPoly (struct poly_s *p)
 {
 	int i;
 
 	/* back-face check */
-	{
-		float normal[3], dist;
-		Vec_MakeNormal (map_verts[0], map_verts[1], map_verts[2], normal, &dist);
-		if (Vec_Dot(normal, cam.pos) - dist < BACKFACE_EPSILON)
-			return;
-	}
+	if (Vec_Dot(p->normal, cam.pos) - p->dist < BACKFACE_EPSILON)
+		return;
 
+	/* set up for clipping */
 	c_idx = 0;
-	for (i = 0; i < map_num_verts; i++)
-		Vec_Copy (map_verts[i], c_verts[c_idx][i]);
+	for (i = 0; i < p->num_verts; i++)
+		Vec_Copy (p->verts[i], c_verts[c_idx][i]);
 	c_numverts = i;
 
+	/* clip against the view planes */
 	for (i = 0; i < 4; i++)
 	{
 		if (!C_ClipWithPlane(cam.vplanes[i].normal, cam.vplanes[i].dist))
 			return;
 	}
 
-	for (i = 0; i < c_numverts; i++)
-	{
-		int u, v;
-		if (ProjectPoint(c_verts[c_idx][i], &u, &v))
-			rowtab[v][u] = 0xffff;
-	}
+	E_CreateSpans ();
 }
 
 
@@ -134,7 +121,7 @@ R_DrawScene (void)
 {
 	CalcCamera ();
 
-	DrawPoly ();
+	DrawPoly (&test_poly);
 
 	//...
 }

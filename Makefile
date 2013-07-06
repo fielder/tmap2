@@ -10,7 +10,8 @@ TARGET = $(OBJDIR)/tmap2
 OBJS =	$(OBJDIR)/tmap2.o \
 	$(OBJDIR)/vec.o \
 	$(OBJDIR)/render.o \
-	$(OBJDIR)/clip.o
+	$(OBJDIR)/clip.o \
+	$(OBJDIR)/edge.o
 
 all: $(TARGET)
 
@@ -30,4 +31,6 @@ $(OBJDIR)/vec.o: vec.c
 $(OBJDIR)/render.o: render.c
 	$(CC) -c $(CFLAGS) $? -o $@
 $(OBJDIR)/clip.o: clip.c
+	$(CC) -c $(CFLAGS) $? -o $@
+$(OBJDIR)/edge.o: edge.c
 	$(CC) -c $(CFLAGS) $? -o $@

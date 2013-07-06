@@ -308,6 +308,9 @@ Refresh (void)
 {
 	int y;
 
+	/* do as much as we can _before_ touching the frame buffer */
+	R_DrawScene ();
+
 	if (SDL_MUSTLOCK(sdl_surf))
 	{
 		if (SDL_LockSurface(sdl_surf) != 0)
@@ -320,7 +323,8 @@ Refresh (void)
 	for (y = 0; y < HEIGHT; y++)
 		memset (rowtab[y], 0x0, WIDTH * sizeof(*rowtab[y]));
 
-	R_DrawScene ();
+	/* finally, draw pixels out */
+	R_RenderPolySpans ();
 
 	if (SDL_MUSTLOCK(sdl_surf))
 		SDL_UnlockSurface (sdl_surf);
