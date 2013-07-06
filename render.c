@@ -1,9 +1,12 @@
-#include "clip.c"
+#include <math.h>
 
-#define BACKFACE_EPSILON 0.1
+#include "tmap2.h"
+#include "vec.h"
+#include "clip.h"
+#include "render.h"
 
 
-void
+static void
 CalcCamera (void)
 {
 	float cam2world[3][3];
@@ -60,7 +63,7 @@ CalcCamera (void)
 }
 
 
-int
+static int
 ProjectPoint (const float p[3], int *u, int *v)
 {
 	float local[3], out[3], zi;
@@ -71,13 +74,13 @@ ProjectPoint (const float p[3], int *u, int *v)
 		return 0;
 
 	zi = 1.0 / out[2];
-	*u = (W / 2.0) - cam.dist * zi * out[0];
-	*v = (H / 2.0) - cam.dist * zi * out[1];
+	*u = (WIDTH / 2.0) - cam.dist * zi * out[0];
+	*v = (HEIGHT / 2.0) - cam.dist * zi * out[1];
 
 	if (*u < 0) *u = 0;
-	if (*u >= W) *u = W - 1;
+	if (*u >= WIDTH) *u = WIDTH - 1;
 	if (*v < 0) *v = 0;
-	if (*v >= H) *v = H - 1;
+	if (*v >= HEIGHT) *v = HEIGHT - 1;
 
 	return 1;
 }
@@ -93,7 +96,7 @@ float map_verts[MAX_VERTS][3] =
 int map_num_verts = 4;
 
 
-void
+static void
 DrawPoly (void)
 {
 	int i;
@@ -113,7 +116,7 @@ DrawPoly (void)
 
 	for (i = 0; i < 4; i++)
 	{
-		if (!ClipPolyAgainstPlane(&cam.vplanes[i]))
+		if (!C_ClipWithPlane(cam.vplanes[i].normal, cam.vplanes[i].dist))
 			return;
 	}
 
@@ -127,7 +130,7 @@ DrawPoly (void)
 
 
 void
-DrawScene (void)
+R_DrawScene (void)
 {
 	CalcCamera ();
 

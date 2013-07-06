@@ -7,7 +7,10 @@ LDFLAGS = -lm $(SDLLDFLAGS)
 OBJDIR = obj
 TARGET = $(OBJDIR)/tmap2
 
-OBJS =	$(OBJDIR)/tmap2.o
+OBJS =	$(OBJDIR)/tmap2.o \
+	$(OBJDIR)/vec.o \
+	$(OBJDIR)/render.o \
+	$(OBJDIR)/clip.o
 
 all: $(TARGET)
 
@@ -21,4 +24,10 @@ $(TARGET): $(OBJS)
 ########################################################################
 
 $(OBJDIR)/tmap2.o: tmap2.c
+	$(CC) -c $(CFLAGS) $? -o $@
+$(OBJDIR)/vec.o: vec.c
+	$(CC) -c $(CFLAGS) $? -o $@
+$(OBJDIR)/render.o: render.c
+	$(CC) -c $(CFLAGS) $? -o $@
+$(OBJDIR)/clip.o: clip.c
 	$(CC) -c $(CFLAGS) $? -o $@

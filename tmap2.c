@@ -7,14 +7,8 @@
 #include <SDL.h>
 
 #include "vec.h"
-
-#define W (320 * 1)
-#define H (240 * 1)
-#define PIXTYPE uint16_t
-#define BPP (sizeof(PIXTYPE) * 8)
-#define FOV_X 90.0 /* degrees */
-
-#define FLYSPEED 64.0
+#include "render.h"
+#include "tmap2.h"
 
 #if 1
 /* wasd-style on a kinesis advantage w/ dvorak */
@@ -30,92 +24,24 @@ const int bind_left = SDLK_LEFT;
 const int bind_right = SDLK_RIGHT;
 #endif
 
-enum
-{
-	VPLANE_LEFT,
-	VPLANE_RIGHT,
-	VPLANE_TOP,
-	VPLANE_BOTTOM,
-};
+struct cam_s cam;
+struct input_s in;
 
-enum
-{
-	PITCH,
-	YAW,
-	ROLL,
-};
+static SDL_Surface *sdl_surf = NULL;
 
-struct viewplane_s
-{
-	float normal[3];
-	float dist;
-};
-
-struct
-{
-	float center_x;
-	float center_y;
-
-	float fov_x; /* radians */
-	float fov_y; /* radians */
-	float dist;
-
-	float pos[3];
-	float angles[3]; /* radians */
-
-	float xform[3][3]; /* world-to-camera */
-
-	float forward[3];
-	float left[3];
-	float up[3];
-
-	struct viewplane_s vplanes[4];
-} cam;
-
-enum
-{
-	MBUTTON_LEFT,
-	MBUTTON_MIDDLE,
-	MBUTTON_RIGHT,
-	MBUTTON_WHEEL_UP,
-	MBUTTON_WHEEL_DOWN,
-	MBUTTON_LAST,
-};
-
-struct
-{
-	struct
-	{
-		int delta[2];
-		struct
-		{
-			int state[MBUTTON_LAST];
-			int press[MBUTTON_LAST];
-			int release[MBUTTON_LAST];
-		} button;
-	} mouse;
-
-	struct
-	{
-		int state[SDLK_LAST];
-		int press[SDLK_LAST];
-		int release[SDLK_LAST];
-	} key;
-} in;
-
-SDL_Surface *sdl_surf = NULL;
-
-PIXTYPE **rowtab = NULL;
+pixel_t **rowtab = NULL;
 
 float frametime;
 
-float fps_rate;
-int fps_framecount;
-Uint32 fps_calc_start;
+struct
+{
+	float rate;
+	int framecount;
+	Uint32 calc_start;
+} fps;
 
-/* ========================================================== */
 
-void
+static void
 Shutdown (void)
 {
 	if (sdl_surf != NULL)
@@ -146,7 +72,7 @@ Quit (void)
 }
 
 
-void
+static void
 Init (void)
 {
 	Uint32 flags;
@@ -159,37 +85,37 @@ Init (void)
 	}
 
 	flags = SDL_HWSURFACE | SDL_DOUBLEBUF | SDL_HWPALETTE;
-	if ((sdl_surf = SDL_SetVideoMode(W, H, BPP, flags)) == NULL)
+	if ((sdl_surf = SDL_SetVideoMode(WIDTH, HEIGHT, BPP, flags)) == NULL)
 	{
 		fprintf (stderr, "ERROR: failed setting video mode\n");
 		Quit ();
 	}
 
-	rowtab = malloc (H * sizeof(*rowtab));
+	rowtab = malloc (HEIGHT * sizeof(*rowtab));
 
-	for (y = 0; y < H; y++)
-		rowtab[y] = (PIXTYPE *)((uintptr_t)sdl_surf->pixels + y * sdl_surf->pitch);
+	for (y = 0; y < HEIGHT; y++)
+		rowtab[y] = (pixel_t *)((uintptr_t)sdl_surf->pixels + y * sdl_surf->pitch);
 
 	printf ("Set %dx%dx%d video mode\n", sdl_surf->w, sdl_surf->h, sdl_surf->format->BytesPerPixel * 8);
 
 	/* ================== */
 
-	cam.center_x = W / 2.0;
-	cam.center_y = H / 2.0;
+	cam.center_x = WIDTH / 2.0;
+	cam.center_y = HEIGHT / 2.0;
 
 	cam.fov_x = FOV_X * (M_PI / 180.0);
-	cam.dist = (W / 2.0) / tan(cam.fov_x / 2.0);
-	cam.fov_y = 2.0 * atan((H / 2.0) / cam.dist);
+	cam.dist = (WIDTH / 2.0) / tan(cam.fov_x / 2.0);
+	cam.fov_y = 2.0 * atan((HEIGHT / 2.0) / cam.dist);
 
 	Vec_Clear (cam.pos);
 	Vec_Clear (cam.angles);
 }
 
 
-int grabbed = 0;
-int ignore_mousemove = 1;
+static int _mouse_grabbed = 0;
+static int _mouse_ignore_move = 1;
 
-void
+static void
 FetchInput (void)
 {
 	SDL_Event sdlev;
@@ -259,19 +185,19 @@ FetchInput (void)
 
 			case SDL_MOUSEMOTION:
 			{
-				if (grabbed)
+				if (_mouse_grabbed)
 				{
 					/* when grabbing the mouse, the initial
 					 * delta we get can be HUGE, so ignore
 					 * the first mouse movement after grabbing
 					 * input */
-					if (ignore_mousemove == 0)
+					if (_mouse_ignore_move == 0)
 					{
 						in.mouse.delta[0] = sdlev.motion.xrel;
 						in.mouse.delta[1] = sdlev.motion.yrel;
 					}
 					else
-						ignore_mousemove--;
+						_mouse_ignore_move--;
 				}
 				break;
 			}
@@ -287,34 +213,34 @@ FetchInput (void)
 }
 
 
-void
+static void
 SetGrab (int grab)
 {
-	if (grab && !grabbed)
+	if (grab && !_mouse_grabbed)
 	{
 		SDL_WM_GrabInput (SDL_GRAB_ON);
 		SDL_ShowCursor (SDL_DISABLE);
-		grabbed = 1;
-		ignore_mousemove = 1;
+		_mouse_grabbed = 1;
+		_mouse_ignore_move = 1;
 	}
-	else if (!grab && grabbed)
+	else if (!grab && _mouse_grabbed)
 	{
 		SDL_WM_GrabInput (SDL_GRAB_OFF);
 		SDL_ShowCursor (SDL_ENABLE);
-		grabbed = 0;
-		ignore_mousemove = 1;
+		_mouse_grabbed = 0;
+		_mouse_ignore_move = 1;
 	}
 }
 
 
-void
+static void
 ToggleGrab (void)
 {
-	SetGrab (!grabbed);
+	SetGrab (!_mouse_grabbed);
 }
 
 
-void
+static void
 UpdateCamera (void)
 {
 	int left, forward, up;
@@ -344,13 +270,13 @@ UpdateCamera (void)
 
 	/* camera angle */
 
-	cam.angles[YAW] += -in.mouse.delta[0] * (cam.fov_x / W);
+	cam.angles[YAW] += -in.mouse.delta[0] * (cam.fov_x / WIDTH);
 	while (cam.angles[YAW] >= 2.0 * M_PI)
 		cam.angles[YAW] -= 2.0 * M_PI;
 	while (cam.angles[YAW] < 0.0)
 		cam.angles[YAW] += 2.0 * M_PI;
 
-	cam.angles[PITCH] += in.mouse.delta[1] * (cam.fov_y / H);
+	cam.angles[PITCH] += in.mouse.delta[1] * (cam.fov_y / HEIGHT);
 	if (cam.angles[PITCH] > M_PI / 2.0)
 		cam.angles[PITCH] = M_PI / 2.0;
 	if (cam.angles[PITCH] < -M_PI / 2.0)
@@ -358,7 +284,7 @@ UpdateCamera (void)
 }
 
 
-void
+static void
 RunInput (void)
 {
 	FetchInput ();
@@ -370,17 +296,14 @@ RunInput (void)
 		ToggleGrab ();
 
 	if (in.key.release['f'])
-		printf ("%g\n", fps_rate);
+		printf ("%g\n", fps.rate);
 
 	UpdateCamera ();
 }
 
 /* ========================================================== */
 
-void
-DrawScene (void);
-
-void
+static void
 Refresh (void)
 {
 	int y;
@@ -394,27 +317,27 @@ Refresh (void)
 		}
 	}
 
-	for (y = 0; y < H; y++)
-		memset (rowtab[y], 0x0, W * sizeof(*rowtab[y]));
+	for (y = 0; y < HEIGHT; y++)
+		memset (rowtab[y], 0x0, WIDTH * sizeof(*rowtab[y]));
 
-	DrawScene ();
+	R_DrawScene ();
 
 	if (SDL_MUSTLOCK(sdl_surf))
 		SDL_UnlockSurface (sdl_surf);
 
 	SDL_Flip (sdl_surf);
 
-	fps_framecount++;
+	fps.framecount++;
 
 	/* calculate the framerate */
 	{
 		Uint32 now = SDL_GetTicks();
 
-		if ((now - fps_calc_start) > 250)
+		if ((now - fps.calc_start) > 250)
 		{
-			fps_rate = fps_framecount / ((now - fps_calc_start) / 1000.0);
-			fps_framecount = 0;
-			fps_calc_start = now;
+			fps.rate = fps.framecount / ((now - fps.calc_start) / 1000.0);
+			fps.framecount = 0;
+			fps.calc_start = now;
 		}
 	}
 }
@@ -444,5 +367,3 @@ main (int argc, const char **argv)
 
 	return 0;
 }
-
-#include "render.c"

@@ -1,20 +1,12 @@
-enum
-{
-	SIDE_ON,
-	SIDE_FRONT,
-	SIDE_BACK,
-};
-
-#define CLIP_EPSILON (1.0 / 16.0)
-
-#define MAX_VERTS 16
+#include "vec.h"
+#include "clip.h"
 
 float c_verts[2][MAX_VERTS][3];
 int c_idx;
 int c_numverts;
 
 
-int
+static int
 ClassifyDist (float d)
 {
 	if (d < -CLIP_EPSILON)
@@ -27,7 +19,7 @@ ClassifyDist (float d)
 
 
 int
-ClipPolyAgainstPlane (const struct viewplane_s *plane)
+C_ClipWithPlane (const float normal[3], float dist)
 {
 	int sides[MAX_VERTS + 1];
 	float dots[MAX_VERTS + 1];
@@ -40,7 +32,7 @@ ClipPolyAgainstPlane (const struct viewplane_s *plane)
 
 	for (i = 0; i < c_numverts; i++)
 	{
-		dots[i] = Vec_Dot(c_verts[c_idx][i], plane->normal) - plane->dist;
+		dots[i] = Vec_Dot(c_verts[c_idx][i], normal) - dist;
 		sides[i] = ClassifyDist (dots[i]);
 		counts[sides[i]]++;
 	}
