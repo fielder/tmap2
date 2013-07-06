@@ -316,7 +316,7 @@ ToggleGrab (void)
 void
 UpdateCamera (void)
 {
-	int left, forward;
+	int left, forward, up;
 	float v[2];
 
 	/* movement */
@@ -324,7 +324,6 @@ UpdateCamera (void)
 	left = 0;
 	left += in.key.state[bind_left] ? 1 : 0;
 	left -= in.key.state[bind_right] ? 1 : 0;
-
 	Vec_Copy (cam.left, v);
 	Vec_Scale (v, left * FLYSPEED * frametime);
 	Vec_Add (cam.pos, v, cam.pos);
@@ -332,9 +331,14 @@ UpdateCamera (void)
 	forward = 0;
 	forward += in.key.state[bind_forward] ? 1 : 0;
 	forward -= in.key.state[bind_back] ? 1 : 0;
-
 	Vec_Copy (cam.forward, v);
 	Vec_Scale (v, forward * FLYSPEED * frametime);
+	Vec_Add (cam.pos, v, cam.pos);
+
+	up = 0;
+	up += in.mouse.button.state[MBUTTON_RIGHT];
+	Vec_Copy (cam.up, v);
+	Vec_Scale (v, up * FLYSPEED * frametime);
 	Vec_Add (cam.pos, v, cam.pos);
 
 	/* camera angle */
