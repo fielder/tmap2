@@ -1,6 +1,15 @@
 #include "vec.h"
 #include "clip.h"
 
+enum
+{
+	SIDE_ON,
+	SIDE_FRONT,
+	SIDE_BACK,
+};
+
+#define CLIP_EPSILON (1.0 / 16.0)
+
 float c_verts[2][MAX_VERTS][3];
 int c_idx;
 int c_numverts;
