@@ -83,10 +83,9 @@ Vec_Normalize (float v[3])
 	}
 	else
 	{
-		len = 1.0 / len;
-		v[0] *= len;
-		v[1] *= len;
-		v[2] *= len;
+		v[0] /= len;
+		v[1] /= len;
+		v[2] /= len;
 	}
 }
 

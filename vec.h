@@ -1,6 +1,13 @@
 #ifndef __VEC_H__
 #define __VEC_H__
 
+#ifndef M_PI
+#define M_PI 3.141592653589793238462643383279
+#endif /* M_PI */
+
+#define DEG2RAD(_X) ((_X) * (M_PI / 180.0))
+#define RAD2DEG(_X) ((_X) * (180.0 / M_PI))
+
 extern void
 Vec_Clear (float v[3]);
 
