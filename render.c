@@ -121,6 +121,8 @@ R_DrawScene (void)
 {
 	CalcCamera ();
 
+	e_numspans = 0;
+
 	DrawPoly (&test_poly);
 
 	//...
