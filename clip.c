@@ -14,6 +14,9 @@ float c_verts[2][MAX_VERTS][3];
 int c_idx;
 int c_numverts;
 
+float c_back_verts[MAX_VERTS][3];
+int c_back_numverts = 0;
+
 
 static int
 ClassifyDist (float d)
@@ -49,9 +52,21 @@ C_ClipWithPlane (const float normal[3], float dist)
 	sides[i] = sides[0];
 
 	if (!counts[SIDE_FRONT])
+	{
+		/* all verts on or behind the plane */
+		for (i = 0; i < c_numverts; i++)
+			Vec_Copy (c_verts[c_idx][i], c_back_verts[i]);
+		c_back_numverts = i;
 		return 0;
+	}
 	if (!counts[SIDE_BACK])
+	{
+		/* all verts on the front */
+		c_back_numverts = 0;
 		return 1;
+	}
+
+	c_back_numverts = 0;
 
 	numout = 0;
 	for (i = 0; i < c_numverts; i++)
@@ -62,16 +77,23 @@ C_ClipWithPlane (const float normal[3], float dist)
 		if (sides[i] == SIDE_FRONT || sides[i] == SIDE_ON)
 			Vec_Copy (v, c_verts[c_idx ^ 1][numout++]);
 
+		if (sides[i] == SIDE_BACK || sides[i] == SIDE_ON)
+			Vec_Copy (v, c_back_verts[c_back_numverts++]);
+
 		if (	(sides[i] == SIDE_FRONT && sides[i + 1] == SIDE_BACK) ||
 			(sides[i] == SIDE_BACK && sides[i + 1] == SIDE_FRONT) )
 		{
 			frac = dots[i] / (dots[i] - dots[i + 1]);
-			c_verts[c_idx ^ 1][numout][0] = v[0] + frac * (next[0] - v[0]);
-			c_verts[c_idx ^ 1][numout][1] = v[1] + frac * (next[1] - v[1]);
-			c_verts[c_idx ^ 1][numout][2] = v[2] + frac * (next[2] - v[2]);
+			c_verts[c_idx ^ 1][numout][0] = c_back_verts[c_back_numverts][0] = v[0] + frac * (next[0] - v[0]);
+			c_verts[c_idx ^ 1][numout][1] = c_back_verts[c_back_numverts][1] = v[1] + frac * (next[1] - v[1]);
+			c_verts[c_idx ^ 1][numout][2] = c_back_verts[c_back_numverts][2] = v[2] + frac * (next[2] - v[2]);
 			numout++;
+			c_back_numverts++;
 		}
 	}
+
+	if (c_back_numverts < 3)
+		c_back_numverts = 0;
 
 	if (numout < 3)
 		return 0;

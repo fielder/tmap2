@@ -1,6 +1,8 @@
 #ifndef __CLIP_H__
 #define __CLIP_H__
 
+//FIXME: likely overflows when the poly has max verts (or close) and is clipped
+
 #define MAX_VERTS 16
 
 struct poly_s
@@ -15,6 +17,10 @@ struct poly_s
 extern float c_verts[2][MAX_VERTS][3];
 extern int c_idx;
 extern int c_numverts;
+
+/* when clipped */
+extern float c_back_verts[MAX_VERTS][3];
+extern int c_back_numverts;
 
 extern int
 C_ClipWithPlane (const float normal[3], float dist);
