@@ -9,8 +9,8 @@ TARGET = $(OBJDIR)/tmap2
 
 OBJS =	$(OBJDIR)/tmap2.o \
 	$(OBJDIR)/vec.o \
-	$(OBJDIR)/render.o
-#	$(OBJDIR)/clip.o \
+	$(OBJDIR)/render.o \
+	$(OBJDIR)/clip.o \
 #	$(OBJDIR)/edge.o
 
 all: $(TARGET)

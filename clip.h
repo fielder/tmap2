@@ -1,8 +1,6 @@
 #ifndef __CLIP_H__
 #define __CLIP_H__
 
-#define BACKFACE_EPSILON 0.1
-
 #define MAX_VERTS 16
 
 struct poly_s

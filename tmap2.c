@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 #include <SDL.h>
 
 #include "vec.h"
 #include "render.h"
 #include "tmap2.h"
+
+static SDL_Surface *sdl_surf = NULL;
 
 #if 1
 /* wasd-style on a kinesis advantage w/ dvorak */
@@ -27,8 +28,6 @@ const int bind_right = SDLK_RIGHT;
 struct camera_s camera;
 struct input_s input;
 struct video_s video;
-
-static SDL_Surface *sdl_surf = NULL;
 
 float frametime;
 
@@ -102,7 +101,7 @@ InitVideo (void)
 		fprintf (stderr, "ERROR: failed setting video mode\n");
 		Quit ();
 	}
-	printf ("Set %dx%dx%d video mode\n", sdl_surf->w, sdl_surf->h, sdl_surf->format->BytesPerPixel * 8);
+	printf ("Set %dx%dx%d real video mode\n", sdl_surf->w, sdl_surf->h, sdl_surf->format->BytesPerPixel * 8);
 	printf ("RGB mask: 0x%x 0x%x 0x%x\n", sdl_surf->format->Rmask, sdl_surf->format->Gmask, sdl_surf->format->Bmask);
 
 	video.rows = malloc (video.h * sizeof(*video.rows));
@@ -342,13 +341,20 @@ RunInput (void)
 
 	if (input.key.release['c'])
 	{
-#if 0
-		printf ("(%g %g %g)\n", camera.pos[0], camera.altitude, camera.pos[1]);
-		printf ("angle: %g\n", camera.angle);
-		printf ("left: (%g %g)\n", camera.left[0], camera.left[1]);
-		printf ("forward: (%g %g)\n", camera.forward[0], camera.forward[1]);
-		printf ("\n");
-#endif
+		if (input.key.state[SDLK_LSHIFT] || input.key.state[SDLK_RSHIFT])
+		{
+			Vec_Clear (camera.pos);
+			Vec_Clear (camera.angles);
+		}
+		else
+		{
+			printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
+			printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
+			printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
+			printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
+			printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
+			printf ("\n");
+		}
 	}
 
 	CameraMovement ();

@@ -34,7 +34,6 @@ R_Init (void)
 	camera.fov_y = 2.0 * atan((video.h / 2.0) / camera.dist);
 
 	Vec_Clear (camera.pos);
-camera.pos[1] = 44;
 	Vec_Clear (camera.angles);
 
 	R_CalcViewXForm ();

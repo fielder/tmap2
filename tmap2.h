@@ -97,18 +97,3 @@ extern void
 Quit (void);
 
 #endif /* __TMAP2_H__ */
-
-#if 0
-#define WIDTH (320 * 1)
-#define HEIGHT (240 * 1)
-#define BPP (sizeof(pixel_t) * 8)
-
-#define FOV_X 90.0 /* degrees */
-
-#define FLYSPEED 64.0
-
-
-extern pixel_t **rowtab;
-extern struct cam_s cam;
-extern struct input_s in;
-#endif

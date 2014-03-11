@@ -41,7 +41,7 @@ C_ClipWithPlane (const float normal[3], float dist)
 
 	for (i = 0; i < c_numverts; i++)
 	{
-		dots[i] = Vec_Dot(c_verts[c_idx][i], normal) - dist;
+		dots[i] = Vec_Dot (c_verts[c_idx][i], normal) - dist;
 		sides[i] = ClassifyDist (dots[i]);
 		counts[sides[i]]++;
 	}
