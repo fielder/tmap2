@@ -6,20 +6,13 @@
 
 typedef uint16_t pixel_t;
 
-#define WIDTH (320 * 1)
-#define HEIGHT (240 * 1)
-#define BPP (sizeof(pixel_t) * 8)
-
-#define FOV_X 90.0 /* degrees */
-
-#define FLYSPEED 64.0
-
 enum
 {
 	VPLANE_LEFT,
 	VPLANE_RIGHT,
 	VPLANE_TOP,
 	VPLANE_BOTTOM,
+	VPLANE_NEAR,
 };
 
 enum
@@ -35,7 +28,7 @@ struct viewplane_s
 	float dist;
 };
 
-struct cam_s
+struct camera_s
 {
 	float center_x;
 	float center_y;
@@ -47,13 +40,13 @@ struct cam_s
 	float pos[3];
 	float angles[3]; /* radians */
 
-	float xform[3][3]; /* world-to-camera */
-
 	float forward[3];
 	float left[3];
 	float up[3];
 
-	struct viewplane_s vplanes[4];
+	float xform[3][3]; /* world-to-camera */
+
+	struct viewplane_s vplanes[5];
 };
 
 enum
@@ -87,12 +80,35 @@ struct input_s
 	} key;
 };
 
-extern pixel_t **rowtab;
+struct video_s
+{
+	int w, h;
+	pixel_t *bouncebuf;
+	pixel_t **rows;
+	int scale;
+	pixel_t red, green, blue;
+};
 
-extern struct cam_s cam;
-extern struct input_s in;
+extern struct camera_s camera;
+extern struct input_s input;
+extern struct video_s video;
 
 extern void
 Quit (void);
 
 #endif /* __TMAP2_H__ */
+
+#if 0
+#define WIDTH (320 * 1)
+#define HEIGHT (240 * 1)
+#define BPP (sizeof(pixel_t) * 8)
+
+#define FOV_X 90.0 /* degrees */
+
+#define FLYSPEED 64.0
+
+
+extern pixel_t **rowtab;
+extern struct cam_s cam;
+extern struct input_s in;
+#endif
