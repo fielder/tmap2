@@ -80,49 +80,84 @@ R_CalcViewXForm (void)
 static void
 CalcViewPlanes (void)
 {
-#if 0
 	float cam2world[3][3];
 	float v[3];
 	struct viewplane_s *p;
 	float ang;
 
+	/* view to world transformation matrix */
+	Vec_AnglesMatrix (camera.angles, cam2world, "zyx");
+
 	/* set up view planes */
 
-	/* view to world transformation matrix */
-	Vec_AnglesMatrix (cam.angles, cam2world, "zyx");
-
-	p = &cam.vplanes[VPLANE_LEFT];
-	ang = (cam.fov_x / 2.0);
+	p = &camera.vplanes[VPLANE_LEFT];
+	ang = (camera.fov_x / 2.0);
 	v[0] = -cos (ang);
 	v[1] = 0.0;
 	v[2] = sin (ang);
 	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, cam.pos);
+	p->dist = Vec_Dot (p->normal, camera.pos);
 
-	p = &cam.vplanes[VPLANE_RIGHT];
-	ang = (cam.fov_x / 2.0);
+	p = &camera.vplanes[VPLANE_RIGHT];
+	ang = (camera.fov_x / 2.0);
 	v[0] = cos (ang);
 	v[1] = 0.0;
 	v[2] = sin (ang);
 	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, cam.pos);
+	p->dist = Vec_Dot (p->normal, camera.pos);
 
-	p = &cam.vplanes[VPLANE_TOP];
-	ang = (cam.fov_y / 2.0);
+	p = &camera.vplanes[VPLANE_TOP];
+	ang = (camera.fov_y / 2.0);
 	v[0] = 0.0;
 	v[1] = -cos (ang);
 	v[2] = sin (ang);
 	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, cam.pos);
+	p->dist = Vec_Dot (p->normal, camera.pos);
 
-	p = &cam.vplanes[VPLANE_BOTTOM];
-	ang = (cam.fov_y / 2.0);
+	p = &camera.vplanes[VPLANE_BOTTOM];
+	ang = (camera.fov_y / 2.0);
 	v[0] = 0.0;
 	v[1] = cos (ang);
 	v[2] = sin (ang);
 	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, cam.pos);
-#endif
+	p->dist = Vec_Dot (p->normal, camera.pos);
+
+	/* planes running through pixel centers */
+
+	float pixel_angle_horiz = camera.fov_x / video.w;
+	float pixel_angle_vert = camera.fov_y / video.h;
+
+	p = &camera.vplanes_center[VPLANE_LEFT];
+	ang = (camera.fov_x / 2.0) - (pixel_angle_horiz / 2.0);
+	v[0] = -cos (ang);
+	v[1] = 0.0;
+	v[2] = sin (ang);
+	Vec_Transform (cam2world, v, p->normal);
+	p->dist = Vec_Dot (p->normal, camera.pos);
+
+	p = &camera.vplanes_center[VPLANE_RIGHT];
+	ang = (camera.fov_x / 2.0) - (pixel_angle_horiz / 2.0);
+	v[0] = cos (ang);
+	v[1] = 0.0;
+	v[2] = sin (ang);
+	Vec_Transform (cam2world, v, p->normal);
+	p->dist = Vec_Dot (p->normal, camera.pos);
+
+	p = &camera.vplanes_center[VPLANE_TOP];
+	ang = (camera.fov_y / 2.0) - (pixel_angle_vert / 2.0);
+	v[0] = 0.0;
+	v[1] = -cos (ang);
+	v[2] = sin (ang);
+	Vec_Transform (cam2world, v, p->normal);
+	p->dist = Vec_Dot (p->normal, camera.pos);
+
+	p = &camera.vplanes_center[VPLANE_BOTTOM];
+	ang = (camera.fov_y / 2.0) - (pixel_angle_vert / 2.0);
+	v[0] = 0.0;
+	v[1] = cos (ang);
+	v[2] = sin (ang);
+	Vec_Transform (cam2world, v, p->normal);
+	p->dist = Vec_Dot (p->normal, camera.pos);
 }
 
 
@@ -171,7 +206,75 @@ DrawPoly (struct poly_s *p)
 
 
 static void
-PutPixel (int x, int y, int c)
+RenderLine (int x1, int y1, int x2, int y2, pixel_t c)
+{
+	int x, y;
+	int dx, dy;
+	int sx, sy;
+	int ax, ay;
+	int d;
+
+	if (1)
+	{
+		if (	x1 < 0 || x1 >= video.w ||
+			x2 < 0 || x2 >= video.w ||
+			y1 < 0 || y1 >= video.h ||
+			y2 < 0 || y2 >= video.h )
+		{
+			return;
+		}
+	}
+
+	dx = x2 - x1;
+	ax = 2 * (dx < 0 ? -dx : dx);
+	sx = dx < 0 ? -1 : 1;
+
+	dy = y2 - y1;
+	ay = 2 * (dy < 0 ? -dy : dy);
+	sy = dy < 0 ? -1 : 1;
+
+	x = x1;
+	y = y1;
+
+	if (ax > ay)
+	{
+		d = ay - ax / 2;
+		while (1)
+		{
+			video.rows[y][x] = c;
+			if (x == x2)
+				break;
+			if (d >= 0)
+			{
+				y += sy;
+				d -= ax;
+			}
+			x += sx;
+			d += ay;
+		}
+	}
+	else
+	{
+		d = ax - ay / 2;
+		while (1)
+		{
+			video.rows[y][x] = c;
+			if (y == y2)
+				break;
+			if (d >= 0)
+			{
+				x += sx;
+				d -= ay;
+			}
+			y += sy;
+			d += ax;
+		}
+	}
+}
+
+
+static void
+RenderPixel (int x, int y, int c)
 {
 	if (x >= 0 && x < video.w && y >= 0 && y < video.h)
 	{
@@ -185,21 +288,8 @@ static void
 RenderPoint (float x, float y, float z)
 {
 	float v[3], local[3], out[3];
-	v[0] = x;
-	v[1] = y;
-	v[2] = z;
 
-#if 0
-	{
-		struct viewplane_s *p;
-		p = &camera.vplanes[VPLANE_LEFT];
-		if (Vec_Dot(v, p->normal) - p->dist < (1 / 32.0))
-			return;
-		p = &camera.vplanes[VPLANE_RIGHT];
-		if (Vec_Dot(v, p->normal) - p->dist < (1 / 32.0))
-			return;
-	}
-#endif
+	v[0] = x; v[1] = y; v[2] = z;
 
 	Vec_Subtract (v, camera.pos, local);
 	Vec_Transform (camera.xform, local, out);
@@ -207,8 +297,14 @@ RenderPoint (float x, float y, float z)
 	{
 		int sx = camera.center_x - camera.dist * (out[0] / out[2]) + 0.5;
 		int sy = camera.center_y - camera.dist * (out[1] / out[2]) + 0.5;
-		PutPixel (sx, sy, 0xffff);
+		RenderPixel (sx, sy, 0xffff);
 	}
+}
+
+
+static void
+Render3DLine (const float v1[3], const float v2[3], pixel_t c)
+{
 }
 
 

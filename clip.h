@@ -25,4 +25,8 @@ extern int c_back_numverts;
 extern int
 C_ClipWithPlane (const float normal[3], float dist);
 
+/* assumes c_verts and c_numverts describes only 2 verts */
+extern int
+C_ClipLineWithPlane (const float normal[3], float dist);
+
 #endif /* __CLIP_H__ */
