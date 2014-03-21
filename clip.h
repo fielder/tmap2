@@ -18,10 +18,6 @@ extern float c_verts[2][MAX_VERTS][3];
 extern int c_idx;
 extern int c_numverts;
 
-/* when clipped */
-extern float c_back_verts[MAX_VERTS][3];
-extern int c_back_numverts;
-
 extern int
 C_ClipWithPlane (const float normal[3], float dist);
 
