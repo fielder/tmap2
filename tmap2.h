@@ -47,10 +47,6 @@ struct camera_s
 	float xform[3][3]; /* world-to-camera */
 
 	struct viewplane_s vplanes[5];
-
-	/* running through the center of pixels on the screen edge
-	 * rather than on the pixel boundary */
-	struct viewplane_s vplanes_center[4];
 };
 
 enum

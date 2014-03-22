@@ -1,26 +1,12 @@
-//#include <string.h>
+#include <string.h>
 #include <math.h>
 
 #include "tmap2.h"
 #include "vec.h"
-//#include "clip.h"
-//#include "edge.h"
+#include "clip.h"
 #include "render.h"
 
 const float fov_x = 90.0;
-
-#if 0
-struct poly_s test_poly =
-{
-	{	{ 0.0, 0.0, 512.0 },
-		{ 0.0, 128.0, 512.0 },
-		{ 64.0, 128.0, 512.0 },
-		{ 64.0, 0.0, 512.0 } },
-	4,
-	{0, 0, -1},
-	-512
-};
-#endif
 
 
 void
@@ -37,9 +23,8 @@ R_Init (void)
 	Vec_Clear (camera.angles);
 
 	R_CalcViewXForm ();
-#if 0
-	S_SpanInit ();
 
+#if 0
 	tex_pixels = R_LoadPic ("pics/DOOR2_4.img", &tex_w, &tex_h);
 #endif
 }
@@ -54,8 +39,6 @@ R_Shutdown (void)
 		free (tex_pixels);
 		tex_pixels = NULL;
 	}
-
-	S_SpanCleanup ();
 #endif
 }
 
@@ -88,8 +71,6 @@ CalcViewPlanes (void)
 	/* view to world transformation matrix */
 	Vec_AnglesMatrix (camera.angles, cam2world, "zyx");
 
-	/* set up view planes */
-
 	p = &camera.vplanes[VPLANE_LEFT];
 	ang = (camera.fov_x / 2.0);
 	v[0] = -cos (ang);
@@ -121,70 +102,129 @@ CalcViewPlanes (void)
 	v[2] = sin (ang);
 	Vec_Transform (cam2world, v, p->normal);
 	p->dist = Vec_Dot (p->normal, camera.pos);
-
-	/* planes running through pixel centers */
-
-	float pixel_angle_horiz = camera.fov_x / video.w;
-	float pixel_angle_vert = camera.fov_y / video.h;
-
-	p = &camera.vplanes_center[VPLANE_LEFT];
-	ang = (camera.fov_x / 2.0) - (pixel_angle_horiz / 2.0);
-	v[0] = -cos (ang);
-	v[1] = 0.0;
-	v[2] = sin (ang);
-	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, camera.pos);
-
-	p = &camera.vplanes_center[VPLANE_RIGHT];
-	ang = (camera.fov_x / 2.0) - (pixel_angle_horiz / 2.0);
-	v[0] = cos (ang);
-	v[1] = 0.0;
-	v[2] = sin (ang);
-	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, camera.pos);
-
-	p = &camera.vplanes_center[VPLANE_TOP];
-	ang = (camera.fov_y / 2.0) - (pixel_angle_vert / 2.0);
-	v[0] = 0.0;
-	v[1] = -cos (ang);
-	v[2] = sin (ang);
-	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, camera.pos);
-
-	p = &camera.vplanes_center[VPLANE_BOTTOM];
-	ang = (camera.fov_y / 2.0) - (pixel_angle_vert / 2.0);
-	v[0] = 0.0;
-	v[1] = cos (ang);
-	v[2] = sin (ang);
-	Vec_Transform (cam2world, v, p->normal);
-	p->dist = Vec_Dot (p->normal, camera.pos);
 }
 
+/* ================================================================== */
+/* ================================================================== */
 
-#if 0
-void
-R_RenderPolySpans (void)
+struct span_s
 {
-	struct drawspan_s *s;
-	int x;
+	int u, v, len;
+};
 
-	for (s = e_spans; s != e_spans + e_numspans; s++)
+struct edge_s
+{
+	struct edge_s *next;
+	int top, bottom;
+	int u, du; /* 12.20 fixed-point format */
+};
+
+struct emit_poly_s
+{
+	struct span_s *spans;
+	int num_spans;
+	pixel_t color;
+};
+
+static struct span_s r_spans_pool[2048];
+static struct span_s *r_spans = r_spans_pool;
+static struct span_s *r_spans_end = r_spans_pool + (sizeof(r_spans_pool) / sizeof(r_spans_pool[0]));
+
+static struct emit_poly_s r_epolys_pool[100];
+static struct emit_poly_s *r_epolys;
+static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool) + sizeof(r_epolys_pool[0]));
+
+
+static void
+EmitSpan (int v, int x1, int x2)
+{
+	if (r_spans != r_spans_end)
 	{
-		for (x = s->left; x <= s->right; x++)
-			rowtab[s->y][x] = 0xffff;
+		r_spans->u = x1;
+		r_spans->v = v;
+		r_spans->len = x2 - x1 + 1;
+		r_spans++;
 	}
 }
-#endif
 
 
-#if 0
 static void
-DrawPoly (struct poly_s *p)
+ScanEdges (struct edge_s *edges, int count)
+{
+	//TODO: ...
+}
+
+
+static void
+EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
+{
+	float u1_f, v1_f;
+	int v1_i;
+
+	float u2_f, v2_f;
+	int v2_i;
+
+	float du;
+
+	float local[3], out[3];
+	float scale;
+
+	/* the pixel containment rule says an edge point
+	 * exactly on the center of a pixel will be
+	 * considered to cover that pixel */
+
+	Vec_Subtract (v1, camera.pos, local);
+	Vec_Transform (camera.xform, local, out);
+	scale = camera.dist / out[2];
+	u1_f = camera.center_x - scale * out[0];
+	v1_f = camera.center_y - scale * out[1];
+	v1_i = ceil (v1_f - 0.5);
+
+	Vec_Subtract (v2, camera.pos, local);
+	Vec_Transform (camera.xform, local, out);
+	scale = camera.dist / out[2];
+	u2_f = camera.center_x - scale * out[0];
+	v2_f = camera.center_y - scale * out[1];
+	v2_i = ceil (v2_f - 0.5);
+
+	if (v1_i == v2_i)
+	{
+		return;
+	}
+	else if (v1_i < v2_i)
+	{
+#if 0
+		du = (u2_f - u1_f) / (v2_f - v1_f);
+		r_edges->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000 + (1 << 19);
+		r_edges->du = (du) * 0x100000;
+		r_edges->top = v1_i;
+		/* our fill rule says the bottom vertex/pixel goes to
+		 * the next poly */
+		r_edges->bottom = v2_i - 1;
+#endif
+	}
+	else
+	{
+#if 0
+		du = (u1_f - u2_f) / (v1_f - v2_f);
+		r_edges->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000 + (1 << 19);
+		r_edges->du = (du) * 0x100000;
+		r_edges->top = v2_i;
+		/* our fill rule says the bottom vertex/pixel goes to
+		 * the next poly */
+		r_edges->bottom = v1_i - 1;
+#endif
+	}
+}
+
+
+static void
+DrawPoly (const struct poly_s *p)
 {
 	int i;
 
 	/* back-face check */
-	if (Vec_Dot(p->normal, cam.pos) - p->dist < BACKFACE_EPSILON)
+	if (Vec_Dot(p->normal, camera.pos) - p->dist < BACKFACE_EPSILON)
 		return;
 
 	/* set up for clipping */
@@ -196,96 +236,59 @@ DrawPoly (struct poly_s *p)
 	/* clip against the view planes */
 	for (i = 0; i < 4; i++)
 	{
-		if (!C_ClipWithPlane(cam.vplanes[i].normal, cam.vplanes[i].dist))
+		if (!C_ClipWithPlane(camera.vplanes[i].normal, camera.vplanes[i].dist))
 			return;
 	}
 
-	E_CreateSpans ();
+	/* emit and scan edges */
+	{
+		struct edge_s edges[MAX_VERTS + 8];
+		struct edge_s *next = edges;
+
+		for (i = 0; i < c_numverts; i++)
+		{
+			if (next == edges + (sizeof(edges) / sizeof(edges[0])))
+				return;
+			EmitEdge (	next,
+					c_verts[c_idx][i],
+					c_verts[c_idx][(i + 1) < c_numverts ? (i + 1) : 0] );
+		}
+
+		ScanEdges (edges, next - edges);
+	}
 }
-#endif
 
 
-static void
-RenderLine (int x1, int y1, int x2, int y2, pixel_t c)
+/*
+ * Traverse the world and set up structures to prepare drawing to the
+ * frame buffer.
+ */
+void
+R_DrawScene (void)
 {
-	int x, y;
-	int dx, dy;
-	int sx, sy;
-	int ax, ay;
-	int d;
+	r_spans = r_spans_pool;
+	r_epolys = r_epolys_pool;
 
-	if (1)
+	CalcViewPlanes ();
+
+	struct poly_s test_poly =
 	{
-		if (	x1 < 0 || x1 >= video.w ||
-			x2 < 0 || x2 >= video.w ||
-			y1 < 0 || y1 >= video.h ||
-			y2 < 0 || y2 >= video.h )
-		{
-			return;
-		}
-	}
+		{	{ 0.0, 0.0, 512.0 },
+			{ 0.0, 128.0, 512.0 },
+			{ 64.0, 128.0, 512.0 },
+			{ 64.0, 0.0, 512.0 } },
+		4,
+		{0, 0, -1},
+		-512
+	};
+	DrawPoly (&test_poly);
 
-	dx = x2 - x1;
-	ax = 2 * (dx < 0 ? -dx : dx);
-	sx = dx < 0 ? -1 : 1;
-
-	dy = y2 - y1;
-	ay = 2 * (dy < 0 ? -dy : dy);
-	sy = dy < 0 ? -1 : 1;
-
-	x = x1;
-	y = y1;
-
-	if (ax > ay)
-	{
-		d = ay - ax / 2;
-		while (1)
-		{
-			video.rows[y][x] = c;
-			if (x == x2)
-				break;
-			if (d >= 0)
-			{
-				y += sy;
-				d -= ax;
-			}
-			x += sx;
-			d += ay;
-		}
-	}
-	else
-	{
-		d = ax - ay / 2;
-		while (1)
-		{
-			video.rows[y][x] = c;
-			if (y == y2)
-				break;
-			if (d >= 0)
-			{
-				x += sx;
-				d -= ay;
-			}
-			y += sy;
-			d += ax;
-		}
-	}
+	//...
 }
 
 
 static void
-RenderPixel (int x, int y, int c)
-{
-	if (x >= 0 && x < video.w && y >= 0 && y < video.h)
-	{
-		video.rows[y][x] = c & 0xffff;
-//		S_ClipAndEmitSpan (x, y, y);
-	}
-}
-
-
-static void
-RenderPoint (float x, float y, float z)
+Render3DPoint (float x, float y, float z)
 {
 	float v[3], local[3], out[3];
 
@@ -297,33 +300,18 @@ RenderPoint (float x, float y, float z)
 	{
 		int sx = camera.center_x - camera.dist * (out[0] / out[2]) + 0.5;
 		int sy = camera.center_y - camera.dist * (out[1] / out[2]) + 0.5;
-		RenderPixel (sx, sy, 0xffff);
+		if (sx >= 0 && sx < video.w && sy >= 0 && sy < video.h)
+			video.rows[sy][sx] = 0xffff;
 	}
 }
 
 
 static void
-Render3DLine (const float v1[3], const float v2[3], pixel_t c)
+RenderPolySpans (const struct emit_poly_s *ep)
 {
-}
-
-
-/*
- * Traverse the world and set up structures to prepare drawing to the
- * frame buffer.
- */
-void
-R_DrawScene (void)
-{
-	CalcViewPlanes ();
-
-	/*
-	e_numspans = 0;
-
-	DrawPoly (&test_poly);
-	*/
-
-	//...
+	const struct span_s *s;
+	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
+		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
 }
 
 
@@ -333,6 +321,8 @@ R_DrawScene (void)
 void
 R_RenderScene (void)
 {
+	struct emit_poly_s *ep;
+
 	if (1)
 	{
 		int x, z;
@@ -340,7 +330,10 @@ R_RenderScene (void)
 		{
 			float scale = 4.0;
 			for (z = -50; z < 50; z++)
-				RenderPoint(x*scale, 0, z*scale);
+				Render3DPoint (x*scale, 0, z*scale);
 		}
 	}
+
+	for (ep = r_epolys_pool; ep != r_epolys; ep++)
+		RenderPolySpans (ep);
 }
