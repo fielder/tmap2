@@ -1,14 +1,14 @@
 #include "vec.h"
 #include "clip.h"
 
+#define CLIP_EPSILON (1.0 / 16.0)
+
 enum
 {
 	SIDE_ON,
 	SIDE_FRONT,
 	SIDE_BACK,
 };
-
-#define CLIP_EPSILON (1.0 / 16.0)
 
 float c_verts[2][MAX_VERTS][3];
 int c_idx;
@@ -33,8 +33,8 @@ C_ClipWithPlane (const float normal[3], float dist)
 	int sides[MAX_VERTS + 1];
 	float dots[MAX_VERTS + 1];
 	int counts[3];
-	int i, numout;
 	float *v, *next;
+	int i, numout;
 	float frac;
 
 	counts[SIDE_ON] = counts[SIDE_FRONT] = counts[SIDE_BACK] = 0;
@@ -56,7 +56,8 @@ C_ClipWithPlane (const float normal[3], float dist)
 	}
 	if (!counts[SIDE_BACK])
 	{
-		/* all verts on the front */
+		/* all verts on the front, some possibly touching the
+		 * plane */
 		return 1;
 	}
 
@@ -64,7 +65,7 @@ C_ClipWithPlane (const float normal[3], float dist)
 	for (i = 0; i < c_numverts; i++)
 	{
 		v = c_verts[c_idx][i];
-		next = ((i + 1) < c_numverts) ? c_verts[c_idx][i + 1] : c_verts[c_idx][0];
+		next = c_verts[c_idx][(i + 1 < c_numverts) ? (i + 1) : (0)];
 
 		if (sides[i] == SIDE_FRONT || sides[i] == SIDE_ON)
 			Vec_Copy (v, c_verts[c_idx ^ 1][numout++]);
@@ -88,51 +89,6 @@ C_ClipWithPlane (const float normal[3], float dist)
 
 	c_idx ^= 1;
 	c_numverts = numout;
-
-	return 1;
-}
-
-
-int
-C_ClipLineWithPlane (const float normal[3], float dist)
-{
-	float d1, d2, frac;
-
-	d1 = Vec_Dot (c_verts[c_idx][0], normal) - dist;
-	d2 = Vec_Dot (c_verts[c_idx][1], normal) - dist;
-
-	if (d1 >= 0.0)
-	{
-		if (d2 < 0.0)
-		{
-			/* edge runs from front -> back */
-			frac = d1 / (d1 - d2);
-			c_verts[c_idx][1][0] = c_verts[c_idx][0][0] + frac * (c_verts[c_idx][1][0] - c_verts[c_idx][0][0]);
-			c_verts[c_idx][1][1] = c_verts[c_idx][0][1] + frac * (c_verts[c_idx][1][1] - c_verts[c_idx][0][1]);
-			c_verts[c_idx][1][2] = c_verts[c_idx][0][2] + frac * (c_verts[c_idx][1][2] - c_verts[c_idx][0][2]);
-		}
-		else
-		{
-			/* both vertices on the front side */
-		}
-	}
-	else
-	{
-		if (d2 < 0.0)
-		{
-			/* both vertices behind a plane; the edge is
-			 * fully clipped away */
-			return 0;
-		}
-		else
-		{
-			/* edge runs from back -> front */
-			frac = d1 / (d1 - d2);
-			c_verts[c_idx][0][0] = c_verts[c_idx][0][0] + frac * (c_verts[c_idx][1][0] - c_verts[c_idx][0][0]);
-			c_verts[c_idx][0][1] = c_verts[c_idx][0][1] + frac * (c_verts[c_idx][1][1] - c_verts[c_idx][0][1]);
-			c_verts[c_idx][0][2] = c_verts[c_idx][0][2] + frac * (c_verts[c_idx][1][2] - c_verts[c_idx][0][2]);
-		}
-	}
 
 	return 1;
 }
