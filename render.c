@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 
@@ -107,6 +108,16 @@ CalcViewPlanes (void)
 /* ================================================================== */
 /* ================================================================== */
 
+//FIXME: likely overflows when the poly has max verts (or close) and is clipped
+struct poly_s
+{
+	float verts[MAX_VERTS][3];
+	int num_verts;
+
+	float normal[3];
+	float dist;
+};
+
 struct span_s
 {
 	int u, v, len;
@@ -131,8 +142,20 @@ static struct span_s *r_spans = r_spans_pool;
 static struct span_s *r_spans_end = r_spans_pool + (sizeof(r_spans_pool) / sizeof(r_spans_pool[0]));
 
 static struct emit_poly_s r_epolys_pool[100];
-static struct emit_poly_s *r_epolys;
+static struct emit_poly_s *r_epolys = r_epolys_pool;
 static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool) + sizeof(r_epolys_pool[0]));
+
+static struct edge_s *r_edges_left = NULL;
+static struct edge_s *r_edges_right = NULL;
+
+
+static pixel_t
+PtrToPixel (const void *ptr)
+{
+	uintptr_t a = (uintptr_t)ptr;
+//(uintptr_t)p & ((1 << (sizeof(pixel_t) * 8)) - 1);
+	return 0xffff;
+}
 
 
 static void
@@ -149,13 +172,14 @@ EmitSpan (int v, int x1, int x2)
 
 
 static void
-ScanEdges (struct edge_s *edges, int count)
+ScanEdges (void)
 {
-	//TODO: ...
+	EmitSpan (50, 5, video.w - 5);
+	//TODO: create spans
 }
 
 
-static void
+static int
 EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 {
 	float u1_f, v1_f;
@@ -189,7 +213,8 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 
 	if (v1_i == v2_i)
 	{
-		return;
+		/* doesn't cross a pixel center vertically */
+		return 0;
 	}
 	else if (v1_i < v2_i)
 	{
@@ -202,6 +227,8 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		 * the next poly */
 		r_edges->bottom = v2_i - 1;
 #endif
+		e->next = r_edges_left;
+		r_edges_left = e;
 	}
 	else
 	{
@@ -214,7 +241,11 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		 * the next poly */
 		r_edges->bottom = v1_i - 1;
 #endif
+		e->next = r_edges_right;
+		r_edges_right = e;
 	}
+
+	return 1;
 }
 
 
@@ -222,6 +253,10 @@ static void
 DrawPoly (const struct poly_s *p)
 {
 	int i;
+
+	/* no more emit polys */
+	if (r_epolys == r_epolys_end)
+		return;
 
 	/* back-face check */
 	if (Vec_Dot(p->normal, camera.pos) - p->dist < BACKFACE_EPSILON)
@@ -240,24 +275,55 @@ DrawPoly (const struct poly_s *p)
 			return;
 	}
 
-	/* emit and scan edges */
 	{
 		struct edge_s edges[MAX_VERTS + 8];
+		struct edge_s *end = edges + sizeof(edges) / sizeof(edges[0]);
 		struct edge_s *next = edges;
 
+		r_edges_left = NULL;
+		r_edges_right = NULL;
+
+		/* project and set up edges */
 		for (i = 0; i < c_numverts; i++)
 		{
-			if (next == edges + (sizeof(edges) / sizeof(edges[0])))
+			if (next == end)
 				return;
-			EmitEdge (	next,
+			if (EmitEdge(	next,
 					c_verts[c_idx][i],
-					c_verts[c_idx][(i + 1) < c_numverts ? (i + 1) : 0] );
+					c_verts[c_idx][(i + 1) < c_numverts ? (i + 1) : 0]) )
+			{
+				next++;
+			}
 		}
 
-		ScanEdges (edges, next - edges);
+		/* scan the edges, creating create drawable spans */
+
+		r_epolys->spans = r_spans;
+
+		ScanEdges ();
+
+		/* if spans were generated, the poly is visible */
+		if (r_spans != r_epolys->spans)
+		{
+			r_epolys->num_spans = r_spans - r_epolys->spans;
+			r_epolys->color = PtrToPixel (p);
+			r_epolys++;
+		}
 	}
 }
 
+
+
+static struct poly_s test_poly =
+{
+	{	{ 0.0, 0.0, 512.0 },
+		{ 0.0, 128.0, 512.0 },
+		{ 64.0, 128.0, 512.0 },
+		{ 64.0, 0.0, 512.0 } },
+	4,
+	{0, 0, -1},
+	-512
+};
 
 /*
  * Traverse the world and set up structures to prepare drawing to the
@@ -271,16 +337,6 @@ R_DrawScene (void)
 
 	CalcViewPlanes ();
 
-	struct poly_s test_poly =
-	{
-		{	{ 0.0, 0.0, 512.0 },
-			{ 0.0, 128.0, 512.0 },
-			{ 64.0, 128.0, 512.0 },
-			{ 64.0, 0.0, 512.0 } },
-		4,
-		{0, 0, -1},
-		-512
-	};
 	DrawPoly (&test_poly);
 
 	//...
