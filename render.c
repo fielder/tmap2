@@ -149,13 +149,6 @@ static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool)
 static struct edge_s *r_edges_left = NULL;
 static struct edge_s *r_edges_right = NULL;
 
-#define EEDGES 0
-
-#if EEDGES
-static struct edge_s eedges[128];
-static int num_eedges;
-#endif
-
 
 
 static pixel_t
@@ -182,28 +175,6 @@ EmitSpan (int v, int x1, int x2)
 static void
 ScanEdges (void)
 {
-#if EEDGES
-	{
-		struct edge_s *e;
-		for (e = r_edges_left; e; e = e->next)
-		{
-			eedges[num_eedges].top = e->top;
-			eedges[num_eedges].bottom = e->bottom;
-			eedges[num_eedges].u = e->u;
-			eedges[num_eedges].du = e->du;
-			num_eedges++;
-		}
-		for (e = r_edges_right; e; e = e->next)
-		{
-			eedges[num_eedges].top = e->top;
-			eedges[num_eedges].bottom = e->bottom;
-			eedges[num_eedges].u = e->u;
-			eedges[num_eedges].du = e->du;
-			num_eedges++;
-		}
-	}
-#endif
-
 	int v = r_edges_left->top;
 
 	while (r_edges_left != NULL && r_edges_right != NULL)
@@ -217,19 +188,6 @@ ScanEdges (void)
 			r_edges_left = r_edges_left->next;
 		if (v > r_edges_right->bottom)
 			r_edges_right = r_edges_right->next;
-	}
-}
-
-
-static void
-RenderEdge (const struct edge_s *e)
-{
-	int y, x;
-	for (y = e->top, x = e->u; y <= e->bottom; y++, x += e->du)
-	{
-		int sx = x >> 20;
-		if (sx >= 0 && sx < video.w && y >= 0 && y < video.h)
-			video.rows[y][sx] = 0xffff;
 	}
 }
 
@@ -408,10 +366,6 @@ R_DrawScene (void)
 	r_spans = r_spans_pool;
 	r_epolys = r_epolys_pool;
 
-#if EEDGES
-	num_eedges = 0;
-#endif
-
 	CalcViewPlanes ();
 
 	DrawPoly (&test_poly);
@@ -469,12 +423,4 @@ R_RenderScene (void)
 
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
-
-#if EEDGES
-	{
-		int i;
-		for (i = 0; i < num_eedges; i++)
-			RenderEdge (eedges + i);
-	}
-#endif
 }
