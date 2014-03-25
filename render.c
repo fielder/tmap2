@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -148,20 +149,27 @@ static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool)
 static struct edge_s *r_edges_left = NULL;
 static struct edge_s *r_edges_right = NULL;
 
+#define EEDGES 0
+
+#if EEDGES
+static struct edge_s eedges[128];
+static int num_eedges;
+#endif
+
+
 
 static pixel_t
 PtrToPixel (const void *ptr)
 {
 	uintptr_t a = (uintptr_t)ptr;
-//(uintptr_t)p & ((1 << (sizeof(pixel_t) * 8)) - 1);
-	return 0xffff;
+	return (a & 0xff00) | ((a >> 8) & 0xff);
 }
 
 
 static void
 EmitSpan (int v, int x1, int x2)
 {
-	if (r_spans != r_spans_end)
+	if (r_spans != r_spans_end && x1 <= x2)
 	{
 		r_spans->u = x1;
 		r_spans->v = v;
@@ -174,8 +182,74 @@ EmitSpan (int v, int x1, int x2)
 static void
 ScanEdges (void)
 {
-	EmitSpan (50, 5, video.w - 5);
-	//TODO: create spans
+#if EEDGES
+	{
+		struct edge_s *e;
+		for (e = r_edges_left; e; e = e->next)
+		{
+			eedges[num_eedges].top = e->top;
+			eedges[num_eedges].bottom = e->bottom;
+			eedges[num_eedges].u = e->u;
+			eedges[num_eedges].du = e->du;
+			num_eedges++;
+		}
+		for (e = r_edges_right; e; e = e->next)
+		{
+			eedges[num_eedges].top = e->top;
+			eedges[num_eedges].bottom = e->bottom;
+			eedges[num_eedges].u = e->u;
+			eedges[num_eedges].du = e->du;
+			num_eedges++;
+		}
+	}
+#endif
+
+	int v = r_edges_left->top;
+
+	while (r_edges_left != NULL && r_edges_right != NULL)
+	{
+		EmitSpan (v++, r_edges_left->u >> 20, r_edges_right->u >> 20);
+
+		r_edges_left->u += r_edges_left->du;
+		r_edges_right->u += r_edges_right->du;
+
+		if (v > r_edges_left->bottom)
+			r_edges_left = r_edges_left->next;
+		if (v > r_edges_right->bottom)
+			r_edges_right = r_edges_right->next;
+	}
+}
+
+
+static void
+RenderEdge (const struct edge_s *e)
+{
+	int y, x;
+	for (y = e->top, x = e->u; y <= e->bottom; y++, x += e->du)
+	{
+		int sx = x >> 20;
+		if (sx >= 0 && sx < video.w && y >= 0 && y < video.h)
+			video.rows[y][sx] = 0xffff;
+	}
+}
+
+
+static struct edge_s *
+LinkEdge (struct edge_s *e, struct edge_s *list)
+{
+	if (list == NULL || e->top < list->top)
+	{
+		e->next = list;
+		list = e;
+	}
+	else
+	{
+		struct edge_s *p;
+		for (p = list; p->next != NULL && p->next->top < e->top; p = p->next) {}
+		e->next = p->next;
+		p->next = e;
+	}
+	return list;
 }
 
 
@@ -202,13 +276,14 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 	scale = camera.dist / out[2];
 	u1_f = camera.center_x - scale * out[0];
 	v1_f = camera.center_y - scale * out[1];
-	v1_i = ceil (v1_f - 0.5);
 
 	Vec_Subtract (v2, camera.pos, local);
 	Vec_Transform (camera.xform, local, out);
 	scale = camera.dist / out[2];
 	u2_f = camera.center_x - scale * out[0];
 	v2_f = camera.center_y - scale * out[1];
+
+	v1_i = ceil (v1_f - 0.5);
 	v2_i = ceil (v2_f - 0.5);
 
 	if (v1_i == v2_i)
@@ -218,31 +293,25 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 	}
 	else if (v1_i < v2_i)
 	{
-#if 0
+		/* left-side edge, running down the screen */
 		du = (u2_f - u1_f) / (v2_f - v1_f);
-		r_edges->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000 + (1 << 19);
-		r_edges->du = (du) * 0x100000;
-		r_edges->top = v1_i;
-		/* our fill rule says the bottom vertex/pixel goes to
-		 * the next poly */
-		r_edges->bottom = v2_i - 1;
-#endif
-		e->next = r_edges_left;
-		r_edges_left = e;
+		e->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000;
+		e->u += ((1 << 20) / 2) - 1; /* pre-adjust screen x coords so we capture the correct pixel after shifting down */
+		e->du = (du) * 0x100000;
+		e->top = v1_i;
+		e->bottom = v2_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
+		r_edges_left = LinkEdge (e, r_edges_left);
 	}
 	else
 	{
-#if 0
+		/* right-side edge, running up the screen */
 		du = (u1_f - u2_f) / (v1_f - v2_f);
-		r_edges->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000 + (1 << 19);
-		r_edges->du = (du) * 0x100000;
-		r_edges->top = v2_i;
-		/* our fill rule says the bottom vertex/pixel goes to
-		 * the next poly */
-		r_edges->bottom = v1_i - 1;
-#endif
-		e->next = r_edges_right;
-		r_edges_right = e;
+		e->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000;
+		e->u -= ((1 << 20) / 2); /* pre-adjust screen x coords so we capture the correct pixel after shifting down */
+		e->du = (du) * 0x100000;
+		e->top = v2_i;
+		e->bottom = v1_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
+		r_edges_right = LinkEdge (e, r_edges_right);
 	}
 
 	return 1;
@@ -316,11 +385,15 @@ DrawPoly (const struct poly_s *p)
 
 static struct poly_s test_poly =
 {
-	{	{ 0.0, 0.0, 512.0 },
-		{ 0.0, 128.0, 512.0 },
-		{ 64.0, 128.0, 512.0 },
-		{ 64.0, 0.0, 512.0 } },
-	4,
+	{
+		{ 0, 64, 512 },
+		{ 96, 160, 512 },
+		{ 160, 128, 512 },
+		{ 160, 64, 512 },
+		{ 96, 0, 512 },
+		{ 32, 0, 512 },
+	},
+	6,
 	{0, 0, -1},
 	-512
 };
@@ -334,6 +407,10 @@ R_DrawScene (void)
 {
 	r_spans = r_spans_pool;
 	r_epolys = r_epolys_pool;
+
+#if EEDGES
+	num_eedges = 0;
+#endif
 
 	CalcViewPlanes ();
 
@@ -392,4 +469,12 @@ R_RenderScene (void)
 
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
+
+#if EEDGES
+	{
+		int i;
+		for (i = 0; i < num_eedges; i++)
+			RenderEdge (eedges + i);
+	}
+#endif
 }
