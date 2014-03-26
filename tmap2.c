@@ -536,7 +536,7 @@ main (int argc, const char **argv)
 	memset (&video, 0, sizeof(video));
 	video.w = 320;
 	video.h = 240;
-	video.scale = 2;
+	video.scale = 3;
 
 	InitVideo ();
 	R_Init ();

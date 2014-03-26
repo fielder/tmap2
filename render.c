@@ -254,7 +254,7 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		/* left-side edge, running down the screen */
 		du = (u2_f - u1_f) / (v2_f - v1_f);
 		e->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000;
-		e->u += ((1 << 20) / 2) - 1; /* pre-adjust screen x coords so we capture the correct pixel after shifting down */
+		e->u += ((1 << 20) / 2) - 1; /* pre-adjust screen x coords so we end up with the correct pixel after shifting down */
 		e->du = (du) * 0x100000;
 		e->top = v1_i;
 		e->bottom = v2_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
@@ -265,7 +265,7 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		/* right-side edge, running up the screen */
 		du = (u1_f - u2_f) / (v1_f - v2_f);
 		e->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000;
-		e->u -= ((1 << 20) / 2); /* pre-adjust screen x coords so we capture the correct pixel after shifting down */
+		e->u -= ((1 << 20) / 2); /* pre-adjust screen x coords so we end up with the correct pixel after shifting down */
 		e->du = (du) * 0x100000;
 		e->top = v2_i;
 		e->bottom = v1_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
@@ -344,12 +344,12 @@ DrawPoly (const struct poly_s *p)
 static struct poly_s test_poly =
 {
 	{
+		{ 96, 0, 512 },
+		{ 32, 0, 512 },
 		{ 0, 64, 512 },
 		{ 96, 160, 512 },
 		{ 160, 128, 512 },
 		{ 160, 64, 512 },
-		{ 96, 0, 512 },
-		{ 32, 0, 512 },
 	},
 	6,
 	{0, 0, -1},
