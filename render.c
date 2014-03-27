@@ -129,6 +129,7 @@ struct edge_s
 	struct edge_s *next;
 	int top, bottom;
 	int u, du; /* 12.20 fixed-point format */
+	float v1[3], v2[3];
 };
 
 struct emit_poly_s
@@ -149,6 +150,8 @@ static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool)
 static struct edge_s *r_edges_left = NULL;
 static struct edge_s *r_edges_right = NULL;
 
+struct edge_s e_edges[MAX_VERTS + 8];
+struct edge_s *e_next;
 
 
 static pixel_t
@@ -177,6 +180,17 @@ ScanEdges (void)
 {
 	int v = r_edges_left->top;
 
+	if (v < 0)
+	{
+		printf ("%d\n",v);
+			printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
+			printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
+			printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
+			printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
+			printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
+			printf ("\n");
+
+	}
 	while (r_edges_left != NULL && r_edges_right != NULL)
 	{
 		EmitSpan (v++, r_edges_left->u >> 20, r_edges_right->u >> 20);
@@ -251,6 +265,14 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 	}
 	else if (v1_i < v2_i)
 	{
+		if (v2_f <= 0.5 || v1_f > (video.h - 0.5))
+		{
+			/* math imprecision sometimes results in nearly-horizontal
+			 * emitted edges just above or just below the screen */
+			return 0;
+		}
+Vec_Copy(v1, e->v1);
+Vec_Copy(v2, e->v2);
 		/* left-side edge, running down the screen */
 		du = (u2_f - u1_f) / (v2_f - v1_f);
 		e->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000;
@@ -258,10 +280,20 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		e->du = (du) * 0x100000;
 		e->top = v1_i;
 		e->bottom = v2_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
+		if (e->bottom >= video.h)
+			e->bottom = video.h - 1;
 		r_edges_left = LinkEdge (e, r_edges_left);
 	}
 	else
 	{
+		if (v1_f <= 0.5 || v2_f > (video.h - 0.5))
+		{
+			/* math imprecision sometimes results in nearly-horizontal
+			 * emitted edges just above or just below the screen */
+			return 0;
+		}
+Vec_Copy(v1, e->v1);
+Vec_Copy(v2, e->v2);
 		/* right-side edge, running up the screen */
 		du = (u1_f - u2_f) / (v1_f - v2_f);
 		e->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000;
@@ -269,6 +301,8 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 		e->du = (du) * 0x100000;
 		e->top = v2_i;
 		e->bottom = v1_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
+		if (e->bottom >= video.h)
+			e->bottom = video.h - 1;
 		r_edges_right = LinkEdge (e, r_edges_right);
 	}
 
@@ -303,9 +337,10 @@ DrawPoly (const struct poly_s *p)
 	}
 
 	{
-		struct edge_s edges[MAX_VERTS + 8];
-		struct edge_s *end = edges + sizeof(edges) / sizeof(edges[0]);
-		struct edge_s *next = edges;
+//		struct edge_s e_edges[MAX_VERTS + 8];
+//		struct edge_s *e_next = e_edges;
+		memset (e_edges, 0xff, sizeof(e_edges));
+		e_next = e_edges;
 
 		r_edges_left = NULL;
 		r_edges_right = NULL;
@@ -313,13 +348,13 @@ DrawPoly (const struct poly_s *p)
 		/* project and set up edges */
 		for (i = 0; i < c_numverts; i++)
 		{
-			if (next == end)
+			if (e_next == e_edges + sizeof(e_edges) / sizeof(e_edges[0]))
 				return;
-			if (EmitEdge(	next,
+			if (EmitEdge(	e_next,
 					c_verts[c_idx][i],
 					c_verts[c_idx][(i + 1) < c_numverts ? (i + 1) : 0]) )
 			{
-				next++;
+				e_next++;
 			}
 		}
 
@@ -393,12 +428,22 @@ Render3DPoint (float x, float y, float z)
 }
 
 
+extern void
+SetGrab (int grab);
+
 static void
 RenderPolySpans (const struct emit_poly_s *ep)
 {
 	const struct span_s *s;
+//	int i = 0;
 	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
+	{
+		if (s->v < 0 || s->v >= video.h)
+			SetGrab(0);
+//		printf ("%3d:  u:%d  v:%d  len:%d\n", i, s->u,s->v,s->len);
 		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
+//		i++;
+	}
 }
 
 
@@ -419,6 +464,8 @@ R_RenderScene (void)
 			for (z = -50; z < 50; z++)
 				Render3DPoint (x*scale, 0, z*scale);
 		}
+		for (x = 0; x < 200; x++)
+			Render3DPoint (x, 0, 512);
 	}
 
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)

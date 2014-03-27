@@ -224,7 +224,7 @@ FetchInput (void)
 }
 
 
-static void
+void
 SetGrab (int grab)
 {
 	if (grab && !_mouse_grabbed)
@@ -355,6 +355,15 @@ RunInput (void)
 			printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
 			printf ("\n");
 		}
+	}
+
+	if (input.key.release['x'])
+	{
+		Vec_Clear (camera.pos);
+		Vec_Clear (camera.angles);
+		camera.pos[0] = 94.8478012;
+		camera.pos[1] = 0.0;
+		camera.pos[2] = 507.256012 - 20;
 	}
 
 	CameraMovement ();
@@ -536,7 +545,7 @@ main (int argc, const char **argv)
 	memset (&video, 0, sizeof(video));
 	video.w = 320;
 	video.h = 240;
-	video.scale = 3;
+	video.scale = 2;
 
 	InitVideo ();
 	R_Init ();

@@ -2,7 +2,8 @@ SDLCFLAGS = -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT
 SDLLDFLAGS = -lSDL -lpthread
 
 CC = gcc
-CFLAGS = -Wall -O2 $(SDLCFLAGS)
+#CFLAGS = -Wall -O2 $(SDLCFLAGS)
+CFLAGS = -Wall -g $(SDLCFLAGS)
 LDFLAGS = -lm $(SDLLDFLAGS)
 OBJDIR = obj
 TARGET = $(OBJDIR)/tmap2
