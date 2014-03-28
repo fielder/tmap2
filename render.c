@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -8,7 +7,9 @@
 #include "clip.h"
 #include "render.h"
 
-const float fov_x = 90.0;
+#define BACKFACE_EPSILON 0.5
+
+static const float fov_x = 90.0;
 
 
 void
@@ -129,7 +130,6 @@ struct edge_s
 	struct edge_s *next;
 	int top, bottom;
 	int u, du; /* 12.20 fixed-point format */
-	float v1[3], v2[3];
 };
 
 struct emit_poly_s
@@ -150,9 +150,6 @@ static struct emit_poly_s *r_epolys_end = r_epolys_pool + (sizeof(r_epolys_pool)
 static struct edge_s *r_edges_left = NULL;
 static struct edge_s *r_edges_right = NULL;
 
-struct edge_s e_edges[MAX_VERTS + 8];
-struct edge_s *e_next;
-
 
 static pixel_t
 PtrToPixel (const void *ptr)
@@ -165,7 +162,20 @@ PtrToPixel (const void *ptr)
 static void
 EmitSpan (int v, int x1, int x2)
 {
-	if (r_spans != r_spans_end && x1 <= x2)
+	//FIXME: use green spans
+	if (r_spans == r_spans_end)
+		return;
+	if (v < 0 || v >= video.h)
+		return;
+	if (x1 >= video.w)
+		return;
+	if (x2 < 0)
+		return;
+	if (x1 < 0)
+		x1 = 0;
+	if (x2 >= video.w)
+		x2 = video.w - 1;
+	if (x1 <= x2)
 	{
 		r_spans->u = x1;
 		r_spans->v = v;
@@ -178,19 +188,41 @@ EmitSpan (int v, int x1, int x2)
 static void
 ScanEdges (void)
 {
+	/* Clipping imprecision can lead to a fex-pixel error when
+	 * projecting. For the 2 top edges, skip pixels until both the
+	 * edge tops even up. */
+	while (r_edges_left->top < r_edges_right->top)
+	{
+		r_edges_left->u += r_edges_left->du;
+		if (++r_edges_left->top > r_edges_left->bottom)
+			r_edges_left = r_edges_left->next;
+	}
+	while (r_edges_right->top < r_edges_left->top)
+	{
+		r_edges_right->u += r_edges_right->du;
+		if (++r_edges_right->top > r_edges_right->bottom)
+			r_edges_right = r_edges_right->next;
+	}
+
+	if (r_edges_left == NULL || r_edges_right == NULL)
+		return;
+
 	int v = r_edges_left->top;
 
+#if 0
 	if (v < 0)
 	{
-		printf ("%d\n",v);
-			printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
-			printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
-			printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
-			printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
-			printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
-			printf ("\n");
+		printf ("ltop: %d  rtop: %d\n", r_edges_left->top, r_edges_right->top);
+		printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
+		printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
+		printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
+		printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
+		printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
+		printf ("\n");
 
 	}
+#endif
+
 	while (r_edges_left != NULL && r_edges_right != NULL)
 	{
 		EmitSpan (v++, r_edges_left->u >> 20, r_edges_right->u >> 20);
@@ -239,9 +271,9 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 	float local[3], out[3];
 	float scale;
 
-	/* the pixel containment rule says an edge point
-	 * exactly on the center of a pixel will be
-	 * considered to cover that pixel */
+	/* the pixel containment rule says an edge point exactly on the
+	 * center of a pixel vertically will be considered to cover that
+	 * pixel */
 
 	Vec_Subtract (v1, camera.pos, local);
 	Vec_Transform (camera.xform, local, out);
@@ -265,44 +297,40 @@ EmitEdge (struct edge_s *e, const float v1[3], const float v2[3])
 	}
 	else if (v1_i < v2_i)
 	{
-		if (v2_f <= 0.5 || v1_f > (video.h - 0.5))
+		/* left-side edge, running down the screen */
+
+		if (v2_i <= 0 || v1_i >= video.h)
 		{
 			/* math imprecision sometimes results in nearly-horizontal
 			 * emitted edges just above or just below the screen */
 			return 0;
 		}
-Vec_Copy(v1, e->v1);
-Vec_Copy(v2, e->v2);
-		/* left-side edge, running down the screen */
+
 		du = (u2_f - u1_f) / (v2_f - v1_f);
 		e->u = (u1_f + du * (v1_i + 0.5 - v1_f)) * 0x100000;
 		e->u += ((1 << 20) / 2) - 1; /* pre-adjust screen x coords so we end up with the correct pixel after shifting down */
-		e->du = (du) * 0x100000;
+		e->du = du * 0x100000;
 		e->top = v1_i;
 		e->bottom = v2_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
-		if (e->bottom >= video.h)
-			e->bottom = video.h - 1;
 		r_edges_left = LinkEdge (e, r_edges_left);
 	}
 	else
 	{
-		if (v1_f <= 0.5 || v2_f > (video.h - 0.5))
+		/* right-side edge, running up the screen */
+
+		if (v1_i <= 0 || v2_i >= video.h)
 		{
 			/* math imprecision sometimes results in nearly-horizontal
 			 * emitted edges just above or just below the screen */
 			return 0;
 		}
-Vec_Copy(v1, e->v1);
-Vec_Copy(v2, e->v2);
-		/* right-side edge, running up the screen */
+
 		du = (u1_f - u2_f) / (v1_f - v2_f);
 		e->u = (u2_f + du * (v2_i + 0.5 - v2_f)) * 0x100000;
 		e->u -= ((1 << 20) / 2); /* pre-adjust screen x coords so we end up with the correct pixel after shifting down */
-		e->du = (du) * 0x100000;
+		e->du = du * 0x100000;
 		e->top = v2_i;
 		e->bottom = v1_i - 1; /* this edge's last row is 1 pixel above the top pixel of the next edge */
-		if (e->bottom >= video.h)
-			e->bottom = video.h - 1;
 		r_edges_right = LinkEdge (e, r_edges_right);
 	}
 
@@ -337,8 +365,8 @@ DrawPoly (const struct poly_s *p)
 	}
 
 	{
-//		struct edge_s e_edges[MAX_VERTS + 8];
-//		struct edge_s *e_next = e_edges;
+		struct edge_s e_edges[MAX_VERTS + 8];
+		struct edge_s *e_next = e_edges;
 		memset (e_edges, 0xff, sizeof(e_edges));
 		e_next = e_edges;
 
@@ -434,16 +462,26 @@ SetGrab (int grab);
 static void
 RenderPolySpans (const struct emit_poly_s *ep)
 {
+#if 0
 	const struct span_s *s;
-//	int i = 0;
+	int i = 0;
 	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
 	{
 		if (s->v < 0 || s->v >= video.h)
 			SetGrab(0);
-//		printf ("%3d:  u:%d  v:%d  len:%d\n", i, s->u,s->v,s->len);
-		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
-//		i++;
+		else if (s->u >= 0 && s->u + s->len <= video.w)
+			memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
+		else
+		{
+			printf ("%3d:  u:%d  v:%d  len:%d\n", i, s->u,s->v,s->len);
+			i++;
+		}
 	}
+#else
+	const struct span_s *s;
+	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
+		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
+#endif
 }
 
 
@@ -471,3 +509,44 @@ R_RenderScene (void)
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
 }
+
+
+#if 0
+/* NOTE if we fix-up and shift coords to fit on-screen then we're
+ * essentially doing screen-space clipping yes ?
+ */
+	if (v1_f < v2_f)
+	{
+		/* left-side edge, running down the screen */
+
+		if (v2_f <= 0.5 || v1_f > (video.h - 0.5))
+		{
+			/* math imprecision sometimes results in nearly-horizontal
+			 * emitted edges just above or just below the screen */
+			return 0;
+		}
+
+		du = (u2_f - u1_f) / (v2_f - v1_f);
+
+		//...
+	}
+	else if (v2_f < v1_f)
+	{
+		/* right-side edge, running up the screen */
+
+		if (v1_f <= 0.5 || v2_f > (video.h - 0.5))
+		{
+			/* math imprecision sometimes results in nearly-horizontal
+			 * emitted edges just above or just below the screen */
+			return 0;
+		}
+
+		//...
+	}
+	else
+	{
+		/* ignore perfectly horizontal edges */
+		return 0;
+	}
+#endif
+

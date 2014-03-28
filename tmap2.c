@@ -13,23 +13,23 @@ static SDL_Surface *sdl_surf = NULL;
 
 #if 1
 /* wasd-style on a kinesis advantage w/ dvorak */
-const int bind_forward = '.';
-const int bind_back = 'e';
-const int bind_left = 'o';
-const int bind_right = 'u';
+static const int bind_forward = '.';
+static const int bind_back = 'e';
+static const int bind_left = 'o';
+static const int bind_right = 'u';
 #else
 /* qwerty-style using arrows */
-const int bind_forward = SDLK_UP;
-const int bind_back = SDLK_DOWN;
-const int bind_left = SDLK_LEFT;
-const int bind_right = SDLK_RIGHT;
+static const int bind_forward = SDLK_UP;
+static const int bind_back = SDLK_DOWN;
+static const int bind_left = SDLK_LEFT;
+static const int bind_right = SDLK_RIGHT;
 #endif
 
 struct camera_s camera;
 struct input_s input;
 struct video_s video;
 
-float frametime;
+static float frametime;
 
 static struct
 {
@@ -38,7 +38,7 @@ static struct
 	Uint32 calc_start;
 } fps;
 
-const float flyspeed = 64.0;
+static const float flyspeed = 64.0;
 
 
 static void
@@ -361,9 +361,33 @@ RunInput (void)
 	{
 		Vec_Clear (camera.pos);
 		Vec_Clear (camera.angles);
-		camera.pos[0] = 94.8478012;
-		camera.pos[1] = 0.0;
-		camera.pos[2] = 507.256012 - 20;
+		if (input.key.state[SDLK_LSHIFT] || input.key.state[SDLK_RSHIFT])
+		{
+			/* camera is so close to the poly that the clip
+			 * epsilon is many pixels wide, rejecting edges
+			 * on the back-face of a vplane */
+			camera.pos[0] = 94.8478;
+			camera.pos[1] = 0.0;
+			camera.pos[2] = 510.809;
+
+			/*
+			camera.pos[0] = 94.8478;
+			camera.pos[1] = 0.0;
+			camera.pos[2] = 507.16;
+			*/
+
+			/*
+			camera.pos[0] = 96.3198;
+			camera.pos[1] = 0.0;
+			camera.pos[2] = 511.767;
+			*/
+		}
+		else
+		{
+			camera.pos[0] = 94.8478012;
+			camera.pos[1] = 0.0;
+			camera.pos[2] = 507.256012 - 20;
+		}
 	}
 
 	CameraMovement ();
@@ -479,14 +503,6 @@ ClearScreen (int color)
 static void
 Refresh (void)
 {
-#if 0
-	char spanbuf[0x8000];
-	char wallbuf[0x8000];
-
-	S_SpanBeginFrame (spanbuf, sizeof(spanbuf));
-	R_BeginWallFrame (wallbuf, sizeof(wallbuf));
-#endif
-
 	/* do as much as we can _before_ touching the frame buffer */
 	R_DrawScene ();
 
@@ -545,7 +561,7 @@ main (int argc, const char **argv)
 	memset (&video, 0, sizeof(video));
 	video.w = 320;
 	video.h = 240;
-	video.scale = 2;
+	video.scale = 3;
 
 	InitVideo ();
 	R_Init ();
