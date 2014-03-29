@@ -5,11 +5,14 @@
 #include "tmap2.h"
 #include "vec.h"
 #include "clip.h"
+#include "pic.h"
 #include "render.h"
 
 #define BACKFACE_EPSILON 0.5
 
 static const float fov_x = 90.0;
+
+static struct pic_s *texture = NULL;
 
 
 void
@@ -27,22 +30,16 @@ R_Init (void)
 
 	R_CalcViewXForm ();
 
-#if 0
-	tex_pixels = R_LoadPic ("pics/DOOR2_4.img", &tex_w, &tex_h);
-#endif
+	texture = Pic_Load ("TOMW2_1.PCX.rgb"); /* 128x72 */
 }
 
 
 void
 R_Shutdown (void)
 {
-#if 0
-	if (tex_pixels != NULL)
-	{
-		free (tex_pixels);
-		tex_pixels = NULL;
-	}
-#endif
+	texture = Pic_Free (texture);
+
+	Pic_FreeAll ();
 }
 
 
@@ -488,4 +485,11 @@ R_RenderScene (void)
 
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
+
+	if (1)
+	{
+		int y;
+		for (y = 0; y < texture->h; y++)
+			memcpy (video.rows[y], texture->pixels + y * texture->w, sizeof(pixel_t) * texture->w);
+	}
 }
