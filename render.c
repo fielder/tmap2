@@ -456,32 +456,12 @@ Render3DPoint (float x, float y, float z)
 }
 
 
-extern void
-SetGrab (int grab);
-
 static void
 RenderPolySpans (const struct emit_poly_s *ep)
 {
-#if 0
-	const struct span_s *s;
-	int i = 0;
-	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
-	{
-		if (s->v < 0 || s->v >= video.h)
-			SetGrab(0);
-		else if (s->u >= 0 && s->u + s->len <= video.w)
-			memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
-		else
-		{
-			printf ("%3d:  u:%d  v:%d  len:%d\n", i, s->u,s->v,s->len);
-			i++;
-		}
-	}
-#else
 	const struct span_s *s;
 	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
 		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
-#endif
 }
 
 
@@ -509,44 +489,3 @@ R_RenderScene (void)
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
 }
-
-
-#if 0
-/* NOTE if we fix-up and shift coords to fit on-screen then we're
- * essentially doing screen-space clipping yes ?
- */
-	if (v1_f < v2_f)
-	{
-		/* left-side edge, running down the screen */
-
-		if (v2_f <= 0.5 || v1_f > (video.h - 0.5))
-		{
-			/* math imprecision sometimes results in nearly-horizontal
-			 * emitted edges just above or just below the screen */
-			return 0;
-		}
-
-		du = (u2_f - u1_f) / (v2_f - v1_f);
-
-		//...
-	}
-	else if (v2_f < v1_f)
-	{
-		/* right-side edge, running up the screen */
-
-		if (v1_f <= 0.5 || v2_f > (video.h - 0.5))
-		{
-			/* math imprecision sometimes results in nearly-horizontal
-			 * emitted edges just above or just below the screen */
-			return 0;
-		}
-
-		//...
-	}
-	else
-	{
-		/* ignore perfectly horizontal edges */
-		return 0;
-	}
-#endif
-

@@ -224,7 +224,7 @@ FetchInput (void)
 }
 
 
-void
+static void
 SetGrab (int grab)
 {
 	if (grab && !_mouse_grabbed)

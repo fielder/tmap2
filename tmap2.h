@@ -12,7 +12,6 @@ enum
 	VPLANE_RIGHT,
 	VPLANE_TOP,
 	VPLANE_BOTTOM,
-	VPLANE_NEAR,
 };
 
 enum
@@ -46,7 +45,7 @@ struct camera_s
 
 	float xform[3][3]; /* world-to-camera */
 
-	struct viewplane_s vplanes[5];
+	struct viewplane_s vplanes[4];
 };
 
 enum
