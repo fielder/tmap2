@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -39,6 +40,18 @@ static struct
 } fps;
 
 static const float flyspeed = 64.0;
+
+
+static void
+PrintCamera (void)
+{
+	printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
+	printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
+	printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
+	printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
+	printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
+	printf ("\n");
+}
 
 
 static void
@@ -225,10 +238,44 @@ FetchInput (void)
 
 
 static void
+SigHandler (int signum)
+{
+	printf ("\nCaught SIGSEGV\n");
+	PrintCamera ();
+	SetGrab (0);
+	Quit ();
+}
+
+
+static void
+SetupSigHandler (void)
+{
+	static int installed = 0;
+
+	if (installed)
+		return;
+
+	struct sigaction sa;
+
+	memset (&sa, 0, sizeof(sa));
+	sa.sa_handler = SigHandler;
+	if (sigaction(SIGSEGV, &sa, NULL) != 0)
+	{
+		fprintf (stderr, "ERROR: failed installing SIGSEGV handler\n");
+		Quit ();
+	}
+
+	installed = 1;
+}
+
+
+void
 SetGrab (int grab)
 {
 	if (grab && !_mouse_grabbed)
 	{
+		SetupSigHandler ();
+
 		SDL_WM_GrabInput (SDL_GRAB_ON);
 		SDL_ShowCursor (SDL_DISABLE);
 		_mouse_grabbed = 1;
@@ -244,7 +291,7 @@ SetGrab (int grab)
 }
 
 
-static void
+void
 ToggleGrab (void)
 {
 	SetGrab (!_mouse_grabbed);
@@ -339,6 +386,8 @@ RunInput (void)
 	if (input.key.release['f'])
 		printf ("%g\n", fps.rate);
 
+	r_showtex = input.key.state['\''];
+
 	if (input.key.release['c'])
 	{
 		if (input.key.state[SDLK_LSHIFT] || input.key.state[SDLK_RSHIFT])
@@ -347,14 +396,7 @@ RunInput (void)
 			Vec_Clear (camera.angles);
 		}
 		else
-		{
-			printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
-			printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
-			printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
-			printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
-			printf ("forward: (%g %g %g)\n", camera.forward[0], camera.forward[1], camera.forward[2]);
-			printf ("\n");
-		}
+			PrintCamera ();
 	}
 
 	if (input.key.release['x'])
@@ -363,12 +405,23 @@ RunInput (void)
 		Vec_Clear (camera.angles);
 		if (input.key.state[SDLK_LSHIFT] || input.key.state[SDLK_RSHIFT])
 		{
+			r_debugframe = 1;
+
+			camera.pos[0] = -115.205;
+			camera.pos[1] = 86.2427;
+			camera.pos[2] = 18.0858;
+			camera.angles[0] = 0.836552;
+			camera.angles[1] = 0.83939;
+			camera.angles[2] = 0;
+
 			/* camera is so close to the poly that the clip
 			 * epsilon is many pixels wide, rejecting edges
 			 * on the back-face of a vplane */
+			/*
 			camera.pos[0] = 94.8478;
 			camera.pos[1] = 0.0;
 			camera.pos[2] = 510.809;
+			*/
 
 			/*
 			camera.pos[0] = 94.8478;

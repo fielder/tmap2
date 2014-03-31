@@ -13,6 +13,8 @@
 static const float fov_x = 90.0;
 
 static struct pic_s *texture = NULL;
+int r_showtex = 0;
+int r_debugframe = 0;
 
 
 void
@@ -115,6 +117,10 @@ struct poly_s
 
 	float normal[3];
 	float dist;
+
+	/* texture-space vecs */
+	float texvec_s[3];
+	float texvec_t[3];
 };
 
 struct span_s
@@ -383,6 +389,13 @@ DrawPoly (const struct poly_s *p)
 			}
 		}
 
+		if (r_edges_left == NULL || r_edges_right == NULL)
+		{
+			/* can happen if the poly was clipped as in-view
+			 * but no edges were emitted */
+			return;
+		}
+
 		/* scan the edges, creating create drawable spans */
 
 		r_epolys->spans = r_spans;
@@ -400,7 +413,6 @@ DrawPoly (const struct poly_s *p)
 }
 
 
-
 static struct poly_s test_poly =
 {
 	{
@@ -414,6 +426,18 @@ static struct poly_s test_poly =
 	6,
 	{0, 0, -1},
 	-512
+};
+static struct poly_s test_poly2 =
+{
+	{
+		{ 128, 0, 128 },
+		{ 0, 0, 128 },
+		{ 0, 72, 128 },
+		{ 128, 72, 128 },
+	},
+	4,
+	{0, 0, -1},
+	-128
 };
 
 /*
@@ -429,6 +453,7 @@ R_DrawScene (void)
 	CalcViewPlanes ();
 
 	DrawPoly (&test_poly);
+	DrawPoly (&test_poly2);
 
 	//...
 }
@@ -454,11 +479,26 @@ Render3DPoint (float x, float y, float z)
 
 
 static void
+RenderTexturedPixel (int u, int v, int s, int t, const struct pic_s *tex)
+{
+	if (u >= 0 && u < video.w && v >= 0 && v < video.h)
+	{
+		if (s >= 0 && s < tex->w && t >= 0 && t < tex->h)
+			video.rows[u][v] = tex->pixels[t * tex->w + s];
+	}
+}
+
+
+static void
 RenderPolySpans (const struct emit_poly_s *ep)
 {
 	const struct span_s *s;
+	int x;
 	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
-		memset (video.rows[s->v] + s->u, ep->color, s->len * sizeof(pixel_t));
+	{
+		for (x = 0; x < s->len; x++)
+			video.rows[s->v][s->u + x] = ep->color;
+	}
 }
 
 
@@ -486,10 +526,12 @@ R_RenderScene (void)
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
 		RenderPolySpans (ep);
 
-	if (1)
+	if (r_showtex)
 	{
 		int y;
 		for (y = 0; y < texture->h; y++)
 			memcpy (video.rows[y], texture->pixels + y * texture->w, sizeof(pixel_t) * texture->w);
 	}
+
+	r_debugframe = 0;
 }

@@ -95,4 +95,10 @@ extern struct video_s video;
 extern void
 Quit (void);
 
+extern void
+SetGrab (int grab);
+
+extern void
+ToggleGrab (void);
+
 #endif /* __TMAP2_H__ */

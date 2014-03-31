@@ -1,6 +1,9 @@
 #ifndef __RENDER_H__
 #define __RENDER_H__
 
+extern int r_showtex;
+extern int r_debugframe;
+
 extern void
 R_Init (void);
 
