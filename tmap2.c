@@ -1,4 +1,3 @@
-#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -237,6 +236,10 @@ FetchInput (void)
 }
 
 
+#ifdef USE_SEGFAULT_UNGRAB
+
+#include <signal.h>
+
 static void
 SigHandler (int signum)
 {
@@ -246,10 +249,12 @@ SigHandler (int signum)
 	Quit ();
 }
 
+#endif /* USE_SEGFAULT_UNGRAB */
 
 static void
 SetupSigHandler (void)
 {
+#ifdef USE_SEGFAULT_UNGRAB
 	static int installed = 0;
 
 	if (installed)
@@ -266,6 +271,7 @@ SetupSigHandler (void)
 	}
 
 	installed = 1;
+#endif /* USE_SEGFAULT_UNGRAB */
 }
 
 
@@ -407,6 +413,9 @@ RunInput (void)
 		{
 			r_debugframe = 1;
 
+			/* causes just a tiny chip of the distant poly
+			 * to be clipped into the view, but does not
+			 * cross any pixel centers */
 			camera.pos[0] = -115.205;
 			camera.pos[1] = 86.2427;
 			camera.pos[2] = 18.0858;
