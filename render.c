@@ -118,7 +118,10 @@ struct poly_s
 	float normal[3];
 	float dist;
 
+	int textured;
+
 	/* texture-space vecs */
+	float texorg[3];
 	float texvec_s[3];
 	float texvec_t[3];
 };
@@ -137,6 +140,7 @@ struct edge_s
 
 struct emit_poly_s
 {
+	const struct poly_s *poly;
 	struct span_s *spans;
 	int num_spans;
 	pixel_t color;
@@ -405,6 +409,7 @@ DrawPoly (const struct poly_s *p)
 		/* if spans were generated, the poly is visible */
 		if (r_spans != r_epolys->spans)
 		{
+			r_epolys->poly = p;
 			r_epolys->num_spans = r_spans - r_epolys->spans;
 			r_epolys->color = PtrToPixel (p);
 			r_epolys++;
@@ -425,7 +430,8 @@ static struct poly_s test_poly =
 	},
 	6,
 	{0, 0, -1},
-	-512
+	-512,
+	0,
 };
 static struct poly_s test_poly2 =
 {
@@ -437,7 +443,11 @@ static struct poly_s test_poly2 =
 	},
 	4,
 	{0, 0, -1},
-	-128
+	-128,
+	1,
+	{128, 74, 128}, /* top-left of the poly */
+	{-1, 0, 0}, /* right */
+	{0, -1, 0} /* down */
 };
 
 /*
@@ -490,14 +500,35 @@ RenderTexturedPixel (int u, int v, int s, int t, const struct pic_s *tex)
 
 
 static void
-RenderPolySpans (const struct emit_poly_s *ep)
+RenderSolidSpans (const struct span_s *spans, int count, pixel_t color)
 {
-	const struct span_s *s;
 	int x;
-	for (s = ep->spans; s != ep->spans + ep->num_spans; s++)
+	for (; count > 0; count--, spans++)
 	{
-		for (x = 0; x < s->len; x++)
-			video.rows[s->v][s->u + x] = ep->color;
+		for (x = 0; x < spans->len; x++)
+			video.rows[spans->v][spans->u + x] = color;
+	}
+}
+
+
+static void
+RenderPoly (const struct emit_poly_s *ep)
+{
+	if (ep->poly == NULL || !ep->poly->textured)
+	{
+		RenderSolidSpans (ep->spans, ep->num_spans, ep->color);
+	}
+	else
+	{
+		// A = P x N
+		// B = M x P
+		// C = N x M
+		// S = ( u, v, camera.dist )
+		// a = S * A
+		// b = S * B
+		// c = S * C
+		// s = texw * a / c
+		// t = texh * b / c
 	}
 }
 
@@ -524,7 +555,7 @@ R_RenderScene (void)
 	}
 
 	for (ep = r_epolys_pool; ep != r_epolys; ep++)
-		RenderPolySpans (ep);
+		RenderPoly (ep);
 
 	if (r_showtex)
 	{
