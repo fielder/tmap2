@@ -448,8 +448,8 @@ static struct poly_s test_poly2 =
 	-Z,
 	1,
 	{128, 72, Z},
-	{0, 72, Z},
-	{128, 0, Z},
+	{-128, 0, 0},
+	{0, -72, 0},
 };
 #undef Z
 
@@ -494,18 +494,10 @@ Render3DPoint (float x, float y, float z)
 static void
 RenderTexturedPixel (int u, int v, int s, int t, const struct pic_s *tex)
 {
-	if (r_debugframe == 1) r_debugframe++;
 	if (u >= 0 && u < video.w && v >= 0 && v < video.h)
 	{
 		if (s >= 0 && s < tex->w && t >= 0 && t < tex->h)
-		{
 			video.rows[v][u] = tex->pixels[t * tex->w + s];
-			if (r_debugframe == 2)
-			{
-				printf ("uv: %d %d\n", u, v);
-				r_debugframe = 0;
-			}
-		}
 		else
 			video.rows[v][u] = (pixel_t)-1;
 	}
@@ -535,34 +527,18 @@ RenderPoly (const struct emit_poly_s *ep)
 	{
 		float P[3], M[3], N[3];
 		float A[3], B[3], C[3];
-		float S[3], X[3];
+		float S[3];
 		float local[3];
 
 		const struct span_s *span;
 		float a, b, c;
 		int i, u, s, t;
 
-		float cam2world[3][3];
-
-		Vec_AnglesMatrix (camera.angles, cam2world, "zyx");
-
 		Vec_Subtract (ep->poly->texorg, camera.pos, local);
 		Vec_Transform (camera.xform, local, P);
 
-		Vec_Subtract (ep->poly->texvec_s, camera.pos, local);
-		Vec_Transform (camera.xform, local, X);
-		Vec_Subtract (X, P, M);
-
-		Vec_Subtract (ep->poly->texvec_t, camera.pos, local);
-		Vec_Transform (camera.xform, local, X);
-		Vec_Subtract (X, P, N);
-
-		if (r_debugframe)
-		{
-			printf ("P: %g %g %g\n", P[0], P[1], P[2]);
-			printf ("M: %g %g %g\n", M[0], M[1], M[2]);
-			printf ("N: %g %g %g\n", N[0], N[1], N[2]);
-		}
+		Vec_Transform (camera.xform, ep->poly->texvec_s, M);
+		Vec_Transform (camera.xform, ep->poly->texvec_t, N);
 
 		Vec_Cross (P, N, A);
 		Vec_Cross (M, P, B);
@@ -570,11 +546,11 @@ RenderPoly (const struct emit_poly_s *ep)
 
 		for (i = 0, span = ep->spans; i < ep->num_spans; i++, span++)
 		{
-			S[1] = video.h / 2 - span->v;
+			S[1] = camera.center_y - span->v;
 			S[2] = camera.dist;
 			for (u = span->u; u < span->u + span->len; u++)
 			{
-				S[0] = video.w / 2 - u;
+				S[0] = camera.center_x - u;
 				a = Vec_Dot (S, A);
 				b = Vec_Dot (S, B);
 				c = Vec_Dot (S, C);
