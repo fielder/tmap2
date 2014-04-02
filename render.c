@@ -494,10 +494,18 @@ Render3DPoint (float x, float y, float z)
 static void
 RenderTexturedPixel (int u, int v, int s, int t, const struct pic_s *tex)
 {
+	if (r_debugframe == 1) r_debugframe++;
 	if (u >= 0 && u < video.w && v >= 0 && v < video.h)
 	{
 		if (s >= 0 && s < tex->w && t >= 0 && t < tex->h)
+		{
 			video.rows[v][u] = tex->pixels[t * tex->w + s];
+			if (r_debugframe == 2)
+			{
+				printf ("uv: %d %d\n", u, v);
+				r_debugframe = 0;
+			}
+		}
 		else
 			video.rows[v][u] = (pixel_t)-1;
 	}
@@ -538,14 +546,6 @@ RenderPoly (const struct emit_poly_s *ep)
 
 		Vec_AnglesMatrix (camera.angles, cam2world, "zyx");
 
-		/*
-		Vec_Subtract (ep->poly->texorg, camera.pos, local);
-		Vec_Transform (camera.xform, local, P);
-
-		Vec_Transform (camera.xform, ep->poly->texvec_s, M);
-		Vec_Transform (camera.xform, ep->poly->texvec_t, N);
-		*/
-
 		Vec_Subtract (ep->poly->texorg, camera.pos, local);
 		Vec_Transform (camera.xform, local, P);
 
@@ -566,15 +566,15 @@ RenderPoly (const struct emit_poly_s *ep)
 
 		Vec_Cross (P, N, A);
 		Vec_Cross (M, P, B);
-		Vec_Cross (M, N, C);
+		Vec_Cross (N, M, C);
 
 		for (i = 0, span = ep->spans; i < ep->num_spans; i++, span++)
 		{
-			S[1] = span->v;
+			S[1] = video.h / 2 - span->v;
 			S[2] = camera.dist;
 			for (u = span->u; u < span->u + span->len; u++)
 			{
-				S[0] = u;
+				S[0] = video.w / 2 - u;
 				a = Vec_Dot (S, A);
 				b = Vec_Dot (S, B);
 				c = Vec_Dot (S, C);
