@@ -45,6 +45,7 @@ static void
 PrintCamera (void)
 {
 	printf ("(%g %g %g)\n", camera.pos[0], camera.pos[1], camera.pos[2]);
+	printf ("dist: %g\n", camera.dist);
 	printf ("angles: %g %g %g\n", camera.angles[0], camera.angles[1], camera.angles[2]);
 	printf ("left: (%g %g %g)\n", camera.left[0], camera.left[1], camera.left[2]);
 	printf ("up: (%g %g %g)\n", camera.up[0], camera.up[1], camera.up[2]);
@@ -404,6 +405,9 @@ RunInput (void)
 		else
 			PrintCamera ();
 	}
+
+	if (input.key.release['d'])
+		r_debugframe = 1;
 
 	if (input.key.release['x'])
 	{
