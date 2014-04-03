@@ -375,8 +375,6 @@ DrawPoly (const struct poly_s *p)
 	{
 		struct edge_s e_edges[MAX_VERTS + 8];
 		struct edge_s *e_next = e_edges;
-		memset (e_edges, 0xff, sizeof(e_edges));
-		e_next = e_edges;
 
 		r_edges_left = NULL;
 		r_edges_right = NULL;
